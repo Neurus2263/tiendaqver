@@ -115,18 +115,23 @@ h2 {
 
 
 .modal-tonos img {
-  max-width: 90%;
-  max-height: 90%;
+  width: 100%;
+  max-height: 420px;
+  object-fit: contain;
   border-radius: 12px;
+  margin-bottom: 15px;
 }
+
 
 .modal-contenido {
   background: white;
   padding: 20px;
   border-radius: 15px;
-  width: 300px;
+  width: 90%;
+  max-width: 420px;   /* 👈 clave */
   text-align: center;
 }
+
 
 #cerrar-tonos {
   cursor: pointer;
@@ -155,6 +160,9 @@ h2 {
   color: #9b7edb;
   text-align: center;
 }
+
+
+
 
 
 
@@ -229,6 +237,21 @@ h2 {
   cursor: pointer;
   font-weight: 600;
     
+}
+
+/*BOTON AGREGAR TONOS*/
+.btn-elegir-tono{
+
+    width: 100%;
+  padding: .6rem;
+  border: none;
+  border-radius: 8px;
+  background: var(--lila);
+  color: white;
+  cursor: pointer;
+  font-weight: 600;
+
+
 }
 
 /* SIN STOCK */
@@ -452,4 +475,28 @@ h2 {
 }
 body.modal-abierto {
   overflow: hidden;
+}
+
+.tono-item {
+  display: grid;
+  grid-template-columns: 1fr auto auto auto;
+  align-items: center;
+  gap: 8px;
+  background: #f3ecff;
+  padding: 10px;
+  border-radius: 10px;
+}
+
+.tono-item button {
+  background: var(--lila);
+  border: none;
+  color: white;
+  border-radius: 6px;
+  width: 28px;
+  height: 28px;
+  cursor: pointer;
+}
+
+.tono-item .cant {
+  font-weight: bold;
 }

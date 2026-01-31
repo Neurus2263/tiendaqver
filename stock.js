@@ -1,5 +1,9 @@
 document.addEventListener('DOMContentLoaded', () => {
 
+  /* =========================
+     VARIABLES
+  ========================= */
+
   let carrito = [];
 
   const contador = document.getElementById('contador-carrito');
@@ -11,7 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnCerrarCarrito = document.getElementById('cerrar-carrito');
 
   /* =========================
-     CARRITO
+     ABRIR / CERRAR CARRITO
   ========================= */
 
   btnAbrirCarrito.addEventListener('click', () => {
@@ -25,37 +29,187 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   /* =========================
-     AGREGAR PRODUCTOS
+     PRODUCTOS SIN TONOS
   ========================= */
 
-  document.querySelectorAll('.btn-agregar').forEach(btn => {
+ document.querySelectorAll('.btn-agregar').forEach(btn => {
+  btn.addEventListener('click', () => {
+
+    const producto = btn.closest('.producto');
+    const nombre = producto.querySelector('h3').textContent;
+    const precio = parseInt(producto.dataset.precio);
+    let stock = parseInt(producto.dataset.stock);
+
+    if (stock <= 0) {
+      alert('Sin stock');
+      return;
+    }
+
+    const id = nombre; // ID simple para productos sin tonos
+
+    const existente = carrito.find(p => p.id === id);
+
+    if (existente) {
+      existente.cantidad++;
+    } else {
+      carrito.push({
+        id,
+        nombre,
+        precio,
+        cantidad: 1
+      });
+    }
+
+    // descontar stock
+    producto.dataset.stock = stock - 1;
+
+    actualizarContador();
+    renderCarrito();
+  });
+});
+
+  /* =========================
+     ABRIR MODALES DE TONOS
+  ========================= */
+
+  document.querySelectorAll('.btn-elegir-tono').forEach(btn => {
     btn.addEventListener('click', () => {
+      const tipo = btn.dataset.producto;
+      const modal = document.getElementById(`modal-${tipo}`);
+      if (!modal) return;
 
-      const producto = btn.closest('.producto');
-      let stock = parseInt(producto.dataset.stock);
-      const precio = parseInt(producto.dataset.precio);
-      const nombre = producto.querySelector('h3').textContent;
-      const stockText = producto.querySelector('.stock');
-
-      if (stock <= 0) return;
-
-      carrito.push({ nombre, precio });
-
-      stock--;
-      producto.dataset.stock = stock;
-      contador.textContent = carrito.length;
-
-      if (stock > 0) {
-        stockText.textContent = `Stock disponible: ${stock}`;
-      } else {
-        stockText.textContent = 'SIN STOCK';
-        producto.classList.add('sin-stock');
-        btn.disabled = true;
-      }
-
-      renderCarrito();
+      modal.style.display = 'flex';
+      document.body.classList.add('modal-abierto');
     });
   });
+
+  /* =========================
+     CERRAR MODALES
+  ========================= */
+
+  document.querySelectorAll('.cerrar-modal, #cerrar-tonos').forEach(btn => {
+    btn.addEventListener('click', () => {
+      btn.closest('.modal-tonos').style.display = 'none';
+      document.body.classList.remove('modal-abierto');
+    });
+  });
+
+  /* =========================
+     STOCK POR TONO
+  ========================= */
+
+  const stockTonosLapiz = {
+    '01': 10, '02': 10, '03': 10, '04': 10, '05': 10, '06': 10,
+    '07': 10, '08': 10, '09': 10, '10': 10, '11': 10, '12': 10
+  };
+
+  const stockTonosLipGloss = {
+    '01': 10, '02': 10, '03': 10, '04': 10, '05': 10, '06': 10
+  };
+
+  const stockTonosLipCheek = {
+    '01': 10, '02': 10, '03': 10, '04': 10, '05': 10, '06': 10
+  };
+
+
+
+  const stockTonosShini = {
+    '01': 10,
+    '02': 10,
+    '03': 10,
+    '04': 10,
+    '05': 10,
+    '06': 10
+  };
+
+
+  /* =========================
+     TONOS LÁPIZ LABIAL
+  ========================= */
+
+  activarTonos(
+    '#modal-tonos .tono',
+    stockTonosLapiz,
+    'Delineador para Labios Pink 21',
+    2000
+  );
+
+  /* =========================
+     TONOS LIP GLOSS
+  ========================= */
+
+  activarTonos(
+    '#modal-lipgloss .tono',
+    stockTonosLipGloss,
+    'Labiales Lip Gloss Mate Miss Betty',
+    4500
+  );
+
+  /* =========================
+     TONOS LIP & CHEEK
+  ========================= */
+
+  activarTonos(
+    '#modal-lipcheek .tono',
+    stockTonosLipCheek,
+    'Pink 21 Lip & Cheek Lipgloss',
+    4000
+  );
+
+
+  /* =========================
+   TONOS SHINI COLOR TEI
+========================= */
+
+  activarTonos(
+    '#modal-shini .tono',
+    stockTonosShini,
+    'Lip Gloss con Glitter Shini Color Tei',
+    4000
+  );
+
+
+  /* =========================
+     FUNCIÓN REUTILIZABLE
+  ========================= */
+
+  function activarTonos(selector, stockObj, nombreBase, precio) {
+    document.querySelectorAll(selector).forEach(btn => {
+      btn.addEventListener('click', () => {
+
+        const tono = btn.dataset.tono;
+
+        if (stockObj[tono] <= 0) {
+          alert('Sin stock de este tono');
+          return;
+        }
+
+        stockObj[tono]--;
+
+        const id = `${nombreBase}-tono-${tono}`;
+        const existente = carrito.find(p => p.id === id);
+
+        if (existente) existente.cantidad++;
+        else {
+          carrito.push({
+            id,
+            nombre: `${nombreBase} - Tono ${tono}`,
+            precio,
+            cantidad: 1
+          });
+        }
+
+        btn.textContent = `${tono} (${stockObj[tono]})`;
+        if (stockObj[tono] === 0) {
+          btn.disabled = true;
+          btn.style.background = '#ccc';
+        }
+
+        actualizarContador();
+        renderCarrito();
+      });
+    });
+  }
 
   /* =========================
      RENDER CARRITO
@@ -66,13 +220,15 @@ document.addEventListener('DOMContentLoaded', () => {
     let total = 0;
 
     carrito.forEach((p, index) => {
+      total += p.precio * p.cantidad;
+
       items.innerHTML += `
         <div class="item-carrito">
-          <p>• ${p.nombre} - $${p.precio}</p>
+          <p>${p.nombre} x${p.cantidad}</p>
+          <strong>$${p.precio * p.cantidad}</strong>
           <button class="btn-eliminar" data-index="${index}">❌</button>
         </div>
       `;
-      total += p.precio;
     });
 
     totalSpan.textContent = total;
@@ -80,111 +236,18 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.btn-eliminar').forEach(btn => {
       btn.addEventListener('click', () => {
         carrito.splice(btn.dataset.index, 1);
-        contador.textContent = carrito.length;
+        actualizarContador();
         renderCarrito();
       });
     });
   }
 
   /* =========================
-     MODAL TONOS
+     UTILIDAD
   ========================= */
 
-  const btnTonos = document.querySelector('.ver-tonos-btn');
-  const modalTonos = document.getElementById('modal-tonos');
-  const cerrarTonos = document.getElementById('cerrar-tonos');
-
-  if (btnTonos) {
-    btnTonos.addEventListener('click', () => {
-      modalTonos.style.display = 'flex';
-      document.body.classList.add('modal-abierto');
-    });
-  }
-
-  if (cerrarTonos) {
-    cerrarTonos.addEventListener('click', () => {
-      modalTonos.style.display = 'none';
-      document.body.classList.remove('modal-abierto');
-    });
-  }
-
-  document.querySelectorAll('.tono').forEach(btn => {
-    btn.addEventListener('click', () => {
-
-      const tono = btn.dataset.tono;
-      carrito.push({
-        nombre: `Labial Pink 21 - Tono ${tono}`,
-        precio: 8500
-      });
-
-      contador.textContent = carrito.length;
-      renderCarrito();
-
-      modalTonos.style.display = 'none';
-      document.body.classList.remove('modal-abierto');
-    });
-  });
-
-  /* =========================
-     MODAL MERCADO PAGO
-  ========================= */
-
-  const btnMP = document.getElementById('btn-mp');
-  const modalMP = document.getElementById('modal-mp');
-  const cerrarMP = document.getElementById('cerrar-mp');
-
-  if (btnMP) {
-    btnMP.addEventListener('click', () => {
-      modalMP.style.display = 'flex';
-      document.body.classList.add('modal-abierto');
-    });
-  }
-
-  if (cerrarMP) {
-    cerrarMP.addEventListener('click', () => {
-      modalMP.style.display = 'none';
-      document.body.classList.remove('modal-abierto');
-    });
-  }
-
-  /* =========================
-     COMPROBANTE MP
-  ========================= */
-
-  const btnPague = document.getElementById('btn-pague');
-  const zonaComprobante = document.getElementById('zona-comprobante');
-  const inputComprobante = document.getElementById('input-comprobante');
-  const telefonoCliente = document.getElementById('telefono-cliente');
-
-  if (btnPague) {
-    btnPague.addEventListener('click', () => {
-      zonaComprobante.style.display = 'block';
-    });
-  }
-
-  if (inputComprobante) {
-    inputComprobante.addEventListener('change', () => {
-
-      const archivo = inputComprobante.files[0];
-      if (!archivo) return;
-
-      if (archivo.type !== 'application/pdf') {
-        alert('Solo se aceptan comprobantes en PDF.');
-        inputComprobante.value = '';
-        return;
-      }
-
-      const minSize = 30000;
-      const maxSize = 5000000;
-
-      if (archivo.size < minSize || archivo.size > maxSize) {
-        alert('El archivo no parece un comprobante válido.');
-        inputComprobante.value = '';
-        return;
-      }
-
-      telefonoCliente.style.display = 'block';
-    });
+  function actualizarContador() {
+    contador.textContent = carrito.reduce((acc, p) => acc + p.cantidad, 0);
   }
 
 });

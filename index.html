@@ -22,17 +22,18 @@
       <div class="producto" data-stock="5" data-precio="2000">
         <div class="producto-img">
 
-          <!-- FLECHA -->
-          <button class="ver-tonos-btn">➜</button>
-
           <img src="imagenes/lapiz-labial-pink-21.jpeg" alt="Base líquida matte">
         </div>
 
         <h3>Delineador para Labios Pink 21</h3>
-        <p class="precio">$2.000 c/u<u></u></p>
+        <p class="precio">$2.000 c/u</p>
         <p class="stock"></p>
-        <button class="btn-agregar">Agregar</button>
+        <button class="btn-elegir-tono" data-producto="tonos">
+          Elegir tono
+        </button>
+
       </div>
+
 
 
 
@@ -44,17 +45,27 @@
         <p class="precio">$3.000 c/u</p>
         <p class="stock"></p>
         <button class="btn-agregar">Agregar</button>
+
+
       </div>
 
       <div class="producto" data-stock="5" data-precio="4500">
         <div class="producto-img">
-          <img src="imagenes/labiales-lip-gloss-mate.jpeg" alt="Producto">
+
+
+
+
+          <img src="imagenes/labiales-lip-gloss-mate.jpeg" alt="Labiales Lip Gloss Mate">
         </div>
+
         <h3>Labiales Lip Gloss Mate Miss Betty</h3>
         <p class="precio">$4.500 c/u</p>
         <p class="stock"></p>
-        <button class="btn-agregar">Agregar</button>
+        <button class="btn-elegir-tono" data-producto="lipgloss">
+          Elegir tono
+        </button>
       </div>
+
 
       <div class="producto" data-stock="5" data-precio="1800">
         <div class="producto-img">
@@ -160,25 +171,35 @@
         <button class="btn-agregar">Agregar</button>
       </div>
 
-      <div class="producto" data-stock="5" data-precio="4000">
+      <div class="producto" data-stock="10" data-precio="4000">
         <div class="producto-img">
           <img src="imagenes/tei-cosmetica.jpeg" alt="Producto">
         </div>
-        <h3>Lip Gloss con Glitter Shini Color Tei </h3>
+
+        <h3>Lip Gloss con Glitter Shini Color Tei</h3>
         <p class="precio">$4.000 c/u</p>
         <p class="stock"></p>
-        <button class="btn-agregar">Agregar</button>
+
+        <button class="btn-elegir-tono" data-producto="shini">
+          Elegir tono
+        </button>
       </div>
 
-      <div class="producto" data-stock="5" data-precio="4000">
+
+      <div class="producto" data-stock="10" data-precio="4000">
         <div class="producto-img">
-          <img src="imagenes/labiales-pink-21.jpeg" alt="Producto">
+          <img src="imagenes/labiales-pink-21.jpeg" alt="Pink 21 Lip & Cheek Lipgloss">
         </div>
-        <h3>Pink 21 Lip & Cheek Lipgloss </h3>
+
+        <h3>Pink 21 Lip & Cheek Lipgloss</h3>
         <p class="precio">$4.000 c/u</p>
         <p class="stock"></p>
-        <button class="btn-agregar">Agregar</button>
+
+        <button class="btn-elegir-tono" data-producto="lipcheek">
+          Elegir tono
+        </button>
       </div>
+
     </section>
   </main>
 
@@ -266,6 +287,71 @@
 
     </div>
   </div>
+
+
+  <!-- MODAL TONOS LIP GLOSS -->
+  <div id="modal-lipgloss" class="modal-tonos">
+    <div class="modal-contenido">
+
+      <span class="cerrar-modal">✖</span>
+
+      <img src="imagenes/tonos-lip-gloss.jpg" alt="Tonos Lip Gloss">
+
+      <div class="grid-tonos">
+        <button class="tono" data-tono="01">01</button>
+        <button class="tono" data-tono="02">02</button>
+        <button class="tono" data-tono="03">03</button>
+        <button class="tono" data-tono="04">04</button>
+        <button class="tono" data-tono="05">05</button>
+        <button class="tono" data-tono="06">06</button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- MODAL TONOS LIP & CHEEK -->
+  <div id="modal-lipcheek" class="modal-tonos">
+    <div class="modal-contenido">
+
+      <span class="cerrar-modal">✖</span>
+
+      <img src="imagenes/lip-cheek tonos.jpg" alt="Tonos Lip & Cheek Pink 21">
+
+      <div class="grid-tonos">
+        <button class="tono" data-tono="01">01</button>
+        <button class="tono" data-tono="02">02</button>
+        <button class="tono" data-tono="03">03</button>
+        <button class="tono" data-tono="04">04</button>
+        <button class="tono" data-tono="05">05</button>
+        <button class="tono" data-tono="06">06</button>
+      </div>
+
+    </div>
+  </div>
+
+
+  <!-- MODAL TONOS SHINI COLOR TEI -->
+  <div id="modal-shini" class="modal-tonos">
+    <div class="modal-contenido">
+
+      <span class="cerrar-modal">✖</span>
+
+      <img src="imagenes/tonos shini tei.jpg" alt="Tonos Shini Color Tei">
+
+      <div class="grid-tonos">
+        <button class="tono" data-tono="01">01</button>
+        <button class="tono" data-tono="02">02</button>
+        <button class="tono" data-tono="03">03</button>
+        <button class="tono" data-tono="04">04</button>
+        <button class="tono" data-tono="05">05</button>
+        <button class="tono" data-tono="06">06</button>
+      </div>
+
+    </div>
+  </div>
+
+
+
 
 
   <!-- MODAL MERCADO PAGO -->
