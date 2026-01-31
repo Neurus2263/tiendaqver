@@ -19,20 +19,20 @@
   <main>
     <h2>Nuestros productos</h2>
     <section class="productos-grid">
- <div class="producto" data-stock="5" data-precio="8500">
-  <div class="producto-img">
+      <div class="producto" data-stock="5" data-precio="8500">
+        <div class="producto-img">
 
-    <!-- FLECHA -->
-    <button class="ver-tonos-btn">➜</button>
+          <!-- FLECHA -->
+          <button class="ver-tonos-btn">➜</button>
 
-    <img src="imagenes/lapiz-labial-pink-21.jpeg" alt="Base líquida matte">
-  </div>
+          <img src="imagenes/lapiz-labial-pink-21.jpeg" alt="Base líquida matte">
+        </div>
 
-  <h3>Base líquida matte</h3>
-  <p class="precio">$8.500</p>
-  <p class="stock"></p>
-  <button class="btn-agregar">Agregar</button>
-</div>
+        <h3>Base líquida matte</h3>
+        <p class="precio">$8.500</p>
+        <p class="stock"></p>
+        <button class="btn-agregar">Agregar</button>
+      </div>
 
 
 
@@ -186,8 +186,8 @@
       </p>
 
       <a id="btn-instagram" href="https://www.instagram.com/qver.oficial" target="_blank">
-  Instagram
-</a>
+        Instagram
+      </a>
 
 
       <button class="btn-mp" id="btn-mp">
@@ -209,13 +209,15 @@
       <div class="footer-bloque">
         <h4>Contacto</h4>
         <p>📍 Argentina</p>
-        
+
       </div>
 
       <div class="footer-bloque">
         <h4>Seguinos</h4>
-       <a href="https://www.instagram.com/qver.oficial?utm_source=qr&igsh=cTd4aTJtanlqdGxt"> <p>📸 Instagram</p></a>
-        
+        <a href="https://www.instagram.com/qver.oficial?utm_source=qr&igsh=cTd4aTJtanlqdGxt">
+          <p>📸 Instagram</p>
+        </a>
+
       </div>
 
     </div>
@@ -230,66 +232,67 @@
   <script src="stock.js"></script>
 
   <!-- MODAL TONOS -->
-<div id="modal-tonos" class="modal-tonos">
-  <div class="modal-contenido">
+  <div id="modal-tonos" class="modal-tonos">
+    <div class="modal-contenido">
 
-    <span id="cerrar-tonos">✖</span>
+      <span id="cerrar-tonos">✖</span>
 
-    <img src="imagenes/paleta-labiales-pink21.jpg" alt="Carta de tonos">
+      <img src="imagenes/paleta-labiales-pink21.jpg" alt="Carta de tonos">
 
-    <div class="grid-tonos">
-      <button class="tono" data-tono="01">01</button>
-      <button class="tono" data-tono="02">02</button>
-      <button class="tono" data-tono="03">03</button>
-      <button class="tono" data-tono="04">04</button>
-      <button class="tono" data-tono="05">05</button>
-      <button class="tono" data-tono="06">06</button>
-      <button class="tono" data-tono="07">07</button>
-      <button class="tono" data-tono="08">08</button>
-      <button class="tono" data-tono="09">09</button>
-      <button class="tono" data-tono="10">10</button>
-      <button class="tono" data-tono="11">11</button>
-      <button class="tono" data-tono="12">12</button>
+      <div class="grid-tonos">
+        <button class="tono" data-tono="01">01</button>
+        <button class="tono" data-tono="02">02</button>
+        <button class="tono" data-tono="03">03</button>
+        <button class="tono" data-tono="04">04</button>
+        <button class="tono" data-tono="05">05</button>
+        <button class="tono" data-tono="06">06</button>
+        <button class="tono" data-tono="07">07</button>
+        <button class="tono" data-tono="08">08</button>
+        <button class="tono" data-tono="09">09</button>
+        <button class="tono" data-tono="10">10</button>
+        <button class="tono" data-tono="11">11</button>
+        <button class="tono" data-tono="12">12</button>
+      </div>
+
     </div>
-
   </div>
-</div>
 
 
-<!-- MODAL MERCADO PAGO -->
-<div id="modal-mp" class="modal-tonos">
-  <div class="modal-contenido">
+  <!-- MODAL MERCADO PAGO -->
+  <div id="modal-mp" class="modal-tonos">
+    <div class="modal-contenido">
 
-    <span id="cerrar-mp">✖</span>
+      <span id="cerrar-mp">✖</span>
 
-    <h3>Datos para pagar con Mercado Pago</h3>
+      <h3>Datos para pagar con Mercado Pago</h3>
 
-    <p><strong>Alias:</strong> QVer.belleza</p>
-    <p><strong>CVU:</strong> 0000003100097649457867</p>
-    <p><strong>Titular:</strong> Veronica Karina Collazo</p>
+      <p><strong>Alias:</strong> QVer.belleza</p>
+      <p><strong>CVU:</strong> 0000003100097649457867</p>
+      <p><strong>Titular:</strong> Veronica Karina Collazo</p>
 
-    <button id="btn-pague" class="btn-agregar" style="margin-top:15px;">
-      Ya realicé el pago
-    </button>
+      <button id="btn-pague" class="btn-agregar" style="margin-top:15px;">
+        Ya realicé el pago
+      </button>
 
-    <!-- ZONA COMPROBANTE -->
-    <div id="zona-comprobante" style="display:none; margin-top:15px;">
-      <p> Subí el comprobante en PDF.<br>
-  No se aceptan capturas de pantalla.</p>
-      <input type="file" id="input-comprobante" accept="image/*">
+      <!-- ZONA COMPROBANTE -->
+      <div id="zona-comprobante" style="display:none; margin-top:15px;">
+        <p> Subí el comprobante en PDF.<br>
+          No se aceptan capturas de pantalla.</p>
+        <input type="file" id="input-comprobante" accept="application/pdf">
+
+      </div>
+
+      <!-- TELEFONO OCULTO -->
+      <div id="telefono-cliente" style="display:none; margin-top:15px;">
+        <p><strong>Contacto WhatsApp:</strong> 11-7102-0296</p>
+      </div>
+
+      <p style="margin-top:15px;">
+        Si tenés dudas, escribinos por Instagram.
+      </p>
+
     </div>
-
-    <!-- TELEFONO OCULTO -->
-    <div id="telefono-cliente" style="display:none; margin-top:15px;">
-      <p><strong>Contacto WhatsApp:</strong> 11-7102-0296</p>
-    </div>
-
-    <p style="margin-top:15px;">
-      Si tenés dudas, escribinos por Instagram.
-    </p>
-
   </div>
-</div>
 
 
 </body>
