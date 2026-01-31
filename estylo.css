@@ -500,3 +500,20 @@ body.modal-abierto {
 .tono-item .cant {
   font-weight: bold;
 }
+
+/* ================= FIX BOTÓN ELEGIR TONO ================= */
+button.btn-elegir-tono {
+  width: 100%;
+  padding: .6rem;
+  border: none;
+  border-radius: 8px;
+  background: var(--lila);
+  color: white;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+button.btn-elegir-tono:hover {
+  background: #7f66c4;
+}
+
