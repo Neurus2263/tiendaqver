@@ -1,9 +1,12 @@
 document.addEventListener('DOMContentLoaded', () => {
+  /* =========================
+     CONFIG
+  ========================= */
+  const WSP_NUMERO = '5491127902076'; // ✅ TU WhatsApp (formato wa.me sin +)
 
   /* =========================
-     VARIABLES
+     CARRITO
   ========================= */
-
   let carrito = [];
 
   const contador = document.getElementById('contador-carrito');
@@ -14,6 +17,186 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnAbrirCarrito = document.getElementById('btn-ver-carrito');
   const btnCerrarCarrito = document.getElementById('cerrar-carrito');
 
+  if (btnAbrirCarrito && overlay) {
+    btnAbrirCarrito.addEventListener('click', () => {
+      overlay.style.display = 'flex';
+      document.body.classList.add('modal-abierto');
+    });
+  }
+
+  if (btnCerrarCarrito && overlay) {
+    btnCerrarCarrito.addEventListener('click', () => {
+      overlay.style.display = 'none';
+      document.body.classList.remove('modal-abierto');
+    });
+  }
+
+  function agregarOIncrementar(id, nombre, precio) {
+    const existente = carrito.find(p => p.id === id);
+    if (existente) existente.cantidad++;
+    else carrito.push({ id, nombre, precio, cantidad: 1 });
+    renderCarrito();
+  }
+
+  function renderCarrito() {
+    if (!items || !totalSpan || !contador) return;
+
+    items.innerHTML = '';
+    let total = 0;
+
+    carrito.forEach((p, index) => {
+      total += p.precio * p.cantidad;
+      items.insertAdjacentHTML('beforeend', `
+        <div class="item-carrito">
+          <p>${p.nombre} x${p.cantidad}</p>
+          <strong>$${p.precio * p.cantidad}</strong>
+          <button class="btn-eliminar" data-index="${index}">❌</button>
+        </div>
+      `);
+    });
+
+    totalSpan.textContent = String(total);
+    contador.textContent = String(carrito.reduce((a, p) => a + p.cantidad, 0));
+
+    document.querySelectorAll('.btn-eliminar').forEach(btn => {
+      btn.onclick = () => {
+        const i = Number(btn.dataset.index);
+        carrito.splice(i, 1);
+        renderCarrito();
+      };
+    });
+  }
+
+  /* =========================
+     PRODUCTOS SIN TONO (STOCK MANUAL EN HTML)
+     - data-stock y <p class="stock"> se actualizan solo en ese dispositivo
+  ========================= */
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('.btn-agregar');
+    if (!btn) return;
+
+    const producto = btn.closest('.producto');
+    if (!producto) return;
+
+    // Si no tiene data-stock, NO es producto sin tono
+    if (producto.dataset.stock == null) return;
+
+    const nombre = producto.querySelector('h3')?.textContent?.trim() || 'Producto';
+    const precio = Number(producto.dataset.precio || 0);
+
+    let stock = Number(producto.dataset.stock);
+    const stockHTML = producto.querySelector('.stock');
+
+    if (Number.isNaN(stock)) stock = 0;
+
+    if (stock <= 0) {
+      alert('Sin stock');
+      return;
+    }
+
+    // ID = nombre (para que sume cantidad)
+    agregarOIncrementar(nombre, nombre, precio);
+
+    stock -= 1;
+    producto.dataset.stock = String(stock);
+    if (stockHTML) stockHTML.textContent = String(stock);
+
+    if (stock <= 0) {
+      btn.disabled = true;
+      btn.textContent = 'Sin stock';
+      producto.classList.add('sin-stock');
+    }
+  });
+
+  /* =========================
+     MODALES TONOS: abrir/cerrar
+     (HTML corregido usa class="cerrar-tonos" en TODOS)
+  ========================= */
+  document.querySelectorAll('.btn-elegir-tono').forEach(btn => {
+    btn.onclick = () => {
+      const modal = document.getElementById(`modal-${btn.dataset.producto}`);
+      if (!modal) return;
+      modal.style.display = 'flex';
+      document.body.classList.add('modal-abierto');
+    };
+  });
+
+  // ✅ Cerrar cualquier modal de tonos
+  document.querySelectorAll('.cerrar-tonos').forEach(btn => {
+    btn.onclick = () => {
+      const modal = btn.closest('.modal-tonos');
+      if (modal) modal.style.display = 'none';
+      document.body.classList.remove('modal-abierto');
+    };
+  });
+
+  /* =========================
+     TONOS: STOCK MANUAL (EDITÁS ACÁ)
+     - NO se guarda
+     - NO se cierra al elegir
+  ========================= */
+  const stockTonos = {
+    tonos:   { '01': 1,'02': 1,'03': 1,'04': 1,'05': 1,'06': 1,'07': 1,'08': 1,'09': 1,'10': 1,'11': 1,'12': 1 },
+    lipgloss:{ '01': 1,'02': 1,'03': 0,'04': 1,'05': 1,'06': 0 },
+    lipcheek:{ '01': 1,'02': 2,'03': 2,'04': 1,'05': 2,'06': 2 },
+    shini:   { '01': 0,'02': 1,'03': 1,'04': 0,'05': 2,'06': 2 }
+  };
+
+  const configTonos = {
+    'modal-tonos':    { key: 'tonos',    nombre: 'Delineador para Labios Pink 21',        precio: 2000 },
+    'modal-lipgloss': { key: 'lipgloss', nombre: 'Labiales Lip Gloss Mate Miss Betty',   precio: 4500 },
+    'modal-lipcheek': { key: 'lipcheek', nombre: 'Pink 21 Lip & Cheek Lipgloss',         precio: 4000 },
+    'modal-shini':    { key: 'shini',    nombre: 'Lip Gloss con Glitter Shini Color Tei',precio: 4000 }
+  };
+
+  function pintarStockTonos(modalId) {
+    const cfg = configTonos[modalId];
+    const modal = document.getElementById(modalId);
+    if (!cfg || !modal) return;
+
+    modal.querySelectorAll('.tono').forEach(btn => {
+      const tono = btn.dataset.tono;
+      const s = Number(stockTonos[cfg.key]?.[tono] ?? 0);
+      btn.textContent = `${tono} (${s})`;
+      btn.disabled = s <= 0;
+    });
+  }
+
+  // Pintar stock de todos los modales al iniciar
+  Object.keys(configTonos).forEach(pintarStockTonos);
+
+  // Click en tonos (NO cerrar modal)
+  document.querySelectorAll('.modal-tonos .tono').forEach(btn => {
+    btn.onclick = () => {
+      const modal = btn.closest('.modal-tonos');
+      if (!modal) return;
+
+      const cfg = configTonos[modal.id];
+      if (!cfg) return;
+
+      const tono = btn.dataset.tono;
+      let s = Number(stockTonos[cfg.key]?.[tono] ?? 0);
+
+      if (s <= 0) {
+        alert('Sin stock');
+        return;
+      }
+
+      s -= 1;
+      stockTonos[cfg.key][tono] = s;
+
+      btn.textContent = `${tono} (${s})`;
+      btn.disabled = s <= 0;
+
+      const id = `${cfg.nombre}-tono-${tono}`;
+      const nombreItem = `${cfg.nombre} - Tono ${tono}`;
+      agregarOIncrementar(id, nombreItem, cfg.precio);
+    };
+  });
+
+  /* =========================
+     MERCADO PAGO
+  ========================= */
   const btnMP = document.getElementById('btn-mp');
   const modalMP = document.getElementById('modal-mp');
   const cerrarMP = document.getElementById('cerrar-mp');
@@ -21,224 +204,160 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnPague = document.getElementById('btn-pague');
   const zonaComprobante = document.getElementById('zona-comprobante');
   const inputComprobante = document.getElementById('input-comprobante');
-  const telefonoCliente = document.getElementById('telefono-cliente');
+  const montoConfirmado = document.getElementById('monto-confirmado');
+  const btnEnviarWsp = document.getElementById('btn-enviar-wsp');
+  const avisoAdjunto = document.getElementById('aviso-adjunto');
 
-  /* =========================
-     ABRIR / CERRAR CARRITO
-  ========================= */
+  if (btnMP && modalMP) {
+    btnMP.onclick = () => {
+      modalMP.style.display = 'flex';
+      document.body.classList.add('modal-abierto');
+    };
+  }
 
-  btnAbrirCarrito.addEventListener('click', () => {
-    overlay.style.display = 'flex';
-    document.body.classList.add('modal-abierto');
-  });
+  if (cerrarMP && modalMP) {
+    cerrarMP.onclick = () => {
+      modalMP.style.display = 'none';
+      document.body.classList.remove('modal-abierto');
 
-  btnCerrarCarrito.addEventListener('click', () => {
-    overlay.style.display = 'none';
-    document.body.classList.remove('modal-abierto');
-  });
+      // reset UI pago
+      if (zonaComprobante) zonaComprobante.style.display = 'none';
+      if (inputComprobante) inputComprobante.value = '';
+      if (montoConfirmado) montoConfirmado.value = '';
+      if (btnEnviarWsp) btnEnviarWsp.style.display = 'none';
+      if (avisoAdjunto) avisoAdjunto.style.display = 'none';
+    };
+  }
 
-  /* =========================
-     PRODUCTOS SIN TONOS
-  ========================= */
+  if (btnPague && zonaComprobante) {
+    btnPague.onclick = () => {
+      if (carrito.length === 0) {
+        alert('Carrito vacío');
+        return;
+      }
+      zonaComprobante.style.display = 'block';
+    };
+  }
 
-  document.querySelectorAll('.btn-agregar').forEach(btn => {
-    btn.addEventListener('click', () => {
+  function validarComprobanteBasico(file) {
+    if (!file) return { ok: false, msg: 'No hay archivo' };
 
-      const producto = btn.closest('.producto');
-      const nombre = producto.querySelector('h3').textContent;
-      const precio = parseInt(producto.dataset.precio);
-      let stock = parseInt(producto.dataset.stock);
+    // Android a veces trae file.type vacío -> validamos por extensión también
+    const nombre = (file.name || '').toLowerCase();
+    const isPdfByName = nombre.endsWith('.pdf');
+    const isPdfByType = file.type === 'application/pdf';
 
-      if (stock <= 0) {
-        alert('Sin stock');
+    if (!isPdfByType && !isPdfByName) {
+      return { ok: false, msg: 'El comprobante debe ser PDF.' };
+    }
+
+    // Tamaño
+    const minSize = 60000; // 60 KB
+    const maxSize = 5 * 1024 * 1024; // 5 MB
+    if (file.size < minSize || file.size > maxSize) {
+      return { ok: false, msg: 'El archivo no parece un comprobante válido (tamaño).' };
+    }
+
+    // Nombre (tu filtro)
+    const palabrasClave = ['mercadopago', 'mercado_pago', 'mp', 'comprobante', 'pago', 'transferencia'];
+    if (!palabrasClave.some(p => nombre.includes(p))) {
+      return { ok: false, msg: 'El nombre del archivo no corresponde a un comprobante de pago.' };
+    }
+
+    return { ok: true, msg: '' };
+  }
+
+  function tryHabilitarWsp() {
+    if (!btnEnviarWsp) return;
+    const file = inputComprobante?.files?.[0];
+    const monto = Number(montoConfirmado?.value || 0);
+
+    if (file && monto > 0) {
+      btnEnviarWsp.style.display = 'block';
+    } else {
+      btnEnviarWsp.style.display = 'none';
+    }
+  }
+
+  if (inputComprobante) {
+    inputComprobante.addEventListener('change', () => {
+      const file = inputComprobante.files[0];
+      const v = validarComprobanteBasico(file);
+
+      if (!v.ok) {
+        alert(v.msg);
+        inputComprobante.value = '';
+        if (btnEnviarWsp) btnEnviarWsp.style.display = 'none';
+        if (avisoAdjunto) avisoAdjunto.style.display = 'none';
         return;
       }
 
-      const id = nombre;
-      const existente = carrito.find(p => p.id === id);
-
-      if (existente) existente.cantidad++;
-      else {
-        carrito.push({ id, nombre, precio, cantidad: 1 });
+      if (!confirm('¿Confirmás que este comprobante corresponde a esta compra?')) {
+        inputComprobante.value = '';
+        if (btnEnviarWsp) btnEnviarWsp.style.display = 'none';
+        if (avisoAdjunto) avisoAdjunto.style.display = 'none';
+        return;
       }
 
-      producto.dataset.stock = stock - 1;
-
-      actualizarContador();
-      renderCarrito();
-    });
-  });
-
-  /* =========================
-     MODALES DE TONOS
-  ========================= */
-
-  document.querySelectorAll('.btn-elegir-tono').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const tipo = btn.dataset.producto;
-      const modal = document.getElementById(`modal-${tipo}`);
-      if (!modal) return;
-
-      modal.style.display = 'flex';
-      document.body.classList.add('modal-abierto');
-    });
-  });
-
-  document.querySelectorAll('.cerrar-modal, #cerrar-tonos').forEach(btn => {
-    btn.addEventListener('click', () => {
-      btn.closest('.modal-tonos').style.display = 'none';
-      document.body.classList.remove('modal-abierto');
-    });
-  });
-
-  /* =========================
-     STOCK TONOS
-  ========================= */
-
-  const stockTonosLapiz = { '01':10,'02':10,'03':10,'04':10,'05':10,'06':10,'07':10,'08':10,'09':10,'10':10,'11':10,'12':10 };
-  const stockTonosLipGloss = { '01':10,'02':10,'03':10,'04':10,'05':10,'06':10 };
-  const stockTonosLipCheek = { '01':10,'02':10,'03':10,'04':10,'05':10,'06':10 };
-  const stockTonosShini = { '01':10,'02':10,'03':10,'04':10,'05':10,'06':10 };
-
-  activarTonos('#modal-tonos .tono', stockTonosLapiz, 'Delineador para Labios Pink 21', 2000);
-  activarTonos('#modal-lipgloss .tono', stockTonosLipGloss, 'Labiales Lip Gloss Mate Miss Betty', 4500);
-  activarTonos('#modal-lipcheek .tono', stockTonosLipCheek, 'Pink 21 Lip & Cheek Lipgloss', 4000);
-  activarTonos('#modal-shini .tono', stockTonosShini, 'Lip Gloss con Glitter Shini Color Tei', 4000);
-
-  function activarTonos(selector, stockObj, nombreBase, precio) {
-    document.querySelectorAll(selector).forEach(btn => {
-      btn.addEventListener('click', () => {
-
-        const tono = btn.dataset.tono;
-        if (stockObj[tono] <= 0) return alert('Sin stock');
-
-        stockObj[tono]--;
-
-        const id = `${nombreBase}-tono-${tono}`;
-        const existente = carrito.find(p => p.id === id);
-
-        if (existente) existente.cantidad++;
-        else carrito.push({ id, nombre: `${nombreBase} - Tono ${tono}`, precio, cantidad: 1 });
-
-        btn.textContent = `${tono} (${stockObj[tono]})`;
-        if (stockObj[tono] === 0) btn.disabled = true;
-
-        actualizarContador();
-        renderCarrito();
-      });
+      tryHabilitarWsp();
     });
   }
 
-  /* =========================
-     CARRITO
-  ========================= */
-
-  function renderCarrito() {
-    items.innerHTML = '';
-    let total = 0;
-
-    carrito.forEach((p, index) => {
-      total += p.precio * p.cantidad;
-      items.innerHTML += `
-        <div class="item-carrito">
-          <p>${p.nombre} x${p.cantidad}</p>
-          <strong>$${p.precio * p.cantidad}</strong>
-          <button class="btn-eliminar" data-index="${index}">❌</button>
-        </div>`;
-    });
-
-    totalSpan.textContent = total;
-
-    document.querySelectorAll('.btn-eliminar').forEach(btn => {
-      btn.addEventListener('click', () => {
-        carrito.splice(btn.dataset.index, 1);
-        actualizarContador();
-        renderCarrito();
-      });
-    });
+  if (montoConfirmado) {
+    montoConfirmado.addEventListener('input', tryHabilitarWsp);
   }
 
-  function actualizarContador() {
-    contador.textContent = carrito.reduce((a, p) => a + p.cantidad, 0);
+  function crearIdOrdenUnico() {
+    // ID único para que no se repita entre clientes:
+    // ej: QVER-20260201-AB12
+    const hoy = new Date();
+    const y = hoy.getFullYear();
+    const m = String(hoy.getMonth() + 1).padStart(2, '0');
+    const d = String(hoy.getDate()).padStart(2, '0');
+    const rand = Math.random().toString(36).slice(2, 6).toUpperCase();
+    return `QVER-${y}${m}${d}-${rand}`;
   }
 
-  /* =========================
-     MERCADO PAGO
-  ========================= */
+  if (btnEnviarWsp) {
+    btnEnviarWsp.onclick = () => {
+      const file = inputComprobante?.files?.[0];
+      const v = validarComprobanteBasico(file);
+      if (!v.ok) {
+        alert(v.msg);
+        return;
+      }
 
-  btnMP.addEventListener('click', () => {
-    modalMP.style.display = 'flex';
-    document.body.classList.add('modal-abierto');
-  });
+      const monto = Number(montoConfirmado?.value || 0);
+      if (monto <= 0) {
+        alert('Ingresá el monto exacto que pagaste.');
+        return;
+      }
 
-  cerrarMP.addEventListener('click', () => {
-    modalMP.style.display = 'none';
-    document.body.classList.remove('modal-abierto');
-    telefonoCliente.style.display = 'none';
-    zonaComprobante.style.display = 'none';
-    btnPague.disabled = false;
-    btnPague.textContent = 'Ya realicé el pago';
-    inputComprobante.value = '';
-  });
+      const total = Number(totalSpan?.textContent || 0);
 
-  /* BOTÓN PAGUÉ */
-  btnPague.addEventListener('click', () => {
-    zonaComprobante.style.display = 'block';
-    btnPague.disabled = true;
-    btnPague.textContent = 'Esperando comprobante…';
-  });
+      const ordenUnica = crearIdOrdenUnico();
 
-  /* =========================
-     VALIDACIÓN PDF (MÁXIMA FRONTEND)
-  ========================= */
+      const detalle = carrito
+        .map(p => `• ${p.nombre} x${p.cantidad} = $${p.precio * p.cantidad}`)
+        .join('\n');
 
-  inputComprobante.addEventListener('change', () => {
-    const file = inputComprobante.files[0];
-    if (!file) return;
+      const mensaje =
+`Hola! Ya realicé el pago. ✅
+Orden: ${ordenUnica}
 
-    if (file.type !== 'application/pdf') {
-      alert('Debe ser un PDF');
-      inputComprobante.value = '';
-      return;
-    }
+Detalle:
+${detalle}
 
-    if (file.size > 5 * 1024 * 1024) {
-      alert('Máximo 5 MB');
-      inputComprobante.value = '';
-      return;
-    }
+Total carrito: $${total}
+Monto pagado: $${monto}
 
-    if (carrito.length === 0) {
-      alert('Carrito vacío');
-      inputComprobante.value = '';
-      return;
-    }
+IMPORTANTE: Ya tengo el comprobante en PDF seleccionado.
+(En WhatsApp tocá el 📎 y adjuntalo desde Archivos/Downloads).`;
 
-    const nombre = file.name.toLowerCase();
-    const claves = ['mercadopago','mercado_pago','mp','comprobante','pago','transferencia'];
+      if (avisoAdjunto) avisoAdjunto.style.display = 'block';
 
-    if (!claves.some(p => nombre.includes(p))) {
-      alert('El PDF no parece un comprobante válido');
-      inputComprobante.value = '';
-      return;
-    }
-
-    if (!confirm('¿Confirmás que este comprobante corresponde a esta compra?')) {
-      inputComprobante.value = '';
-      return;
-    }
-
-    const total = carrito.reduce((a, p) => a + p.precio * p.cantidad, 0);
-
-    telefonoCliente.innerHTML = `
-      <p><strong>Contacto post-pago:</strong></p>
-      <a href="https://wa.me/5491171020296?text=Hola,%20ya%20realicé%20el%20pago%20de%20$${total}"
-         target="_blank"
-         class="btn-wsp">
-        Contactar por WhatsApp
-      </a>
-    `;
-    telefonoCliente.style.display = 'block';
-  });
-
+      const url = `https://wa.me/${WSP_NUMERO}?text=${encodeURIComponent(mensaje)}`;
+      window.open(url, '_blank');
+    };
+  }
 });
