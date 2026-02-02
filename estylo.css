@@ -496,3 +496,54 @@ h2 {
   opacity: 0.45;
   filter: grayscale(1);
 }
+/* =========================
+   BOTONES WHATSAPP (NUEVO)
+========================= */
+
+#btn-enviar-wsp, 
+#btn-abrir-wsp {
+  width: 100%;
+  padding: 14px 14px;
+  border: none;
+  border-radius: 14px;
+  font-weight: 800;
+  font-size: 15px;
+  cursor: pointer;
+  margin-top: 12px;
+  transition: transform .15s ease, filter .15s ease, box-shadow .15s ease;
+}
+
+/* Botón principal: Enviar pedido */
+#btn-enviar-wsp {
+  background: linear-gradient(135deg, #25D366, #128C7E);
+  color: white;
+  box-shadow: 0 10px 22px rgba(18, 140, 126, .25);
+}
+
+#btn-enviar-wsp:hover {
+  filter: brightness(1.05);
+  transform: translateY(-1px);
+}
+
+#btn-enviar-wsp:active {
+  transform: translateY(1px);
+}
+
+#btn-enviar-wsp:disabled {
+  opacity: .6;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* Botón secundario: Abrir WhatsApp */
+#btn-abrir-wsp {
+  background: #f3ecff;
+  color: #4b2fa4;
+  border: 2px solid rgba(155,126,219,.35);
+  box-shadow: 0 10px 22px rgba(155,126,219, .12);
+}
+
+#btn-abrir-wsp:hover {
+  filter: brightness(1.03);
+  transform: translateY(-1px);
+}
