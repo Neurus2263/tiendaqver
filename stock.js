@@ -510,58 +510,102 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   /* =========================
-     COMPROBANTE + WHATSAPP + EMAIL
-  ========================= */
-  const inputComprobante = document.getElementById('input-comprobante');
-  const montoConfirmado = document.getElementById('monto-confirmado');
-  const btnEnviarWsp = document.getElementById('btn-enviar-wsp');
-  const avisoAdjunto = document.getElementById('aviso-adjunto');
-  const btnPague = document.getElementById('btn-pague');
+   COMPROBANTE + WHATSAPP + EMAIL
+   (flujo robusto: se ejecuta al tocar "Enviar pedido por WhatsApp")
+========================= */
+const inputComprobante = document.getElementById('input-comprobante');
+const montoConfirmado = document.getElementById('monto-confirmado');
+const btnEnviarWsp = document.getElementById('btn-enviar-wsp');
+const avisoAdjunto = document.getElementById('aviso-adjunto');
+const btnPague = document.getElementById('btn-pague');
 
-  let pedidoActual = null;   // {id, order_code}
-  let linkComprobante = null;
+// Estado local
+let fileSeleccionado = null;
+let pedidoActual = null;   // {id, order_code}
+let linkComprobante = null;
 
-  async function crearPedido({ order_code, items, total, monto_pagado, canal }) {
-    const { data, error } = await supa
-      .from('pedidos')
-      .insert([{
-        order_code,
-        items,
-        total,
-        monto_pagado,
-        canal,
-        comprobante_url: null
-      }])
-      .select('id, order_code')
-      .single();
+// Cuando eligen PDF, solo guardamos el archivo (NO subimos todavía)
+if (inputComprobante) {
+  inputComprobante.addEventListener('change', () => {
+    const f = inputComprobante.files?.[0] || null;
+    fileSeleccionado = f;
 
-    if (error) throw error;
-    return data;
-  }
+    if (!fileSeleccionado) return;
 
-  async function subirComprobantePDF(file, orderCode) {
-    const fileName = `comprobante-${Date.now()}.pdf`;
-    const path = `${orderCode}/${fileName}`;
+    // Validaciones básicas del PDF
+    if (fileSeleccionado.type !== 'application/pdf') {
+      setStatus('error', 'Solo se permite PDF.');
+      inputComprobante.value = '';
+      fileSeleccionado = null;
+      return;
+    }
 
-    const { data, error } = await supa.storage
-      .from('comprobantes')
-      .upload(path, file, { contentType: 'application/pdf', upsert: false });
+    const maxMB = 5;
+    if (fileSeleccionado.size > maxMB * 1024 * 1024) {
+      setStatus('error', `El PDF no puede pesar más de ${maxMB}MB.`);
+      inputComprobante.value = '';
+      fileSeleccionado = null;
+      return;
+    }
 
-    if (error) throw error;
-    return data.path;
-  }
+    setStatus('info', 'PDF seleccionado ✅ Ahora ingresá el monto y tocá “Enviar pedido por WhatsApp”.');
 
-  async function notificarPagoBackend({ pedido_id, order_code, comprobante_path, monto_pagado }) {
-    const { data, error } = await supa.functions.invoke('notificar-pago', {
-      body: { pedido_id, order_code, comprobante_path, monto_pagado }
-    });
-    if (error) throw error;
-    return data; // { signed_url }
-  }
+    // Mostramos el botón para seguir
+    if (btnEnviarWsp) {
+      btnEnviarWsp.style.display = 'block';
+      btnEnviarWsp.textContent = 'Enviar pedido por WhatsApp';
+    }
+    if (avisoAdjunto) avisoAdjunto.style.display = 'none';
+  });
+}
 
-  function armarMensajeWhatsApp(orderCode, monto, link) {
-    const detalle = carrito.map(p => `- ${p.nombre} x${p.cantidad} = $${p.precio * p.cantidad}`).join('\n');
-    return (
+async function crearPedido({ order_code, items, total, monto_pagado, canal }) {
+  const { data, error } = await supa
+    .from('pedidos')
+    .insert([{
+      order_code,
+      items,
+      total,
+      monto_pagado,
+      canal,
+      comprobante_url: null
+    }])
+    .select('id, order_code')
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+async function subirComprobantePDF(file, orderCode) {
+  const fileName = `comprobante-${Date.now()}.pdf`;
+  const path = `${orderCode}/${fileName}`;
+
+  const { data, error } = await supa.storage
+    .from('comprobantes')
+    .upload(path, file, { contentType: 'application/pdf', upsert: false });
+
+  if (error) throw error;
+  return data.path;
+}
+
+async function notificarPagoBackend({ pedido_id, order_code, comprobante_path, monto_pagado }) {
+  // Edge Function: notificar-pago
+  // Debe devolver: { signed_url: "..." }
+  const { data, error } = await supa.functions.invoke('notificar-pago', {
+    body: { pedido_id, order_code, comprobante_path, monto_pagado }
+  });
+
+  if (error) throw error;
+  return data;
+}
+
+function armarMensajeWhatsApp(orderCode, monto, link) {
+  const detalle = carrito
+    .map(p => `- ${p.nombre} x${p.cantidad} = $${p.precio * p.cantidad}`)
+    .join('\n');
+
+  return (
 `Hola! Ya realicé el pago.
 🧾 Orden: ${orderCode}
 💰 Monto: $${monto}
@@ -571,112 +615,108 @@ document.addEventListener('DOMContentLoaded', () => {
 Detalle:
 ${detalle}
 `);
+}
+
+async function procesarPagoYObtenerLink() {
+  // Validaciones
+  if (!carrito.length) {
+    setStatus('warn', 'Tu carrito está vacío.');
+    throw new Error('Carrito vacío');
   }
 
-  if (inputComprobante) {
-    inputComprobante.addEventListener('change', async () => {
-      try {
-        pedidoActual = null;
-        linkComprobante = null;
-
-        const file = inputComprobante.files?.[0];
-        if (!file) return;
-
-        if (file.type !== 'application/pdf') {
-          setStatus('error', 'Solo se permite PDF.');
-          inputComprobante.value = '';
-          return;
-        }
-
-        const maxMB = 5;
-        if (file.size > maxMB * 1024 * 1024) {
-          setStatus('error', `El PDF no puede pesar más de ${maxMB}MB.`);
-          inputComprobante.value = '';
-          return;
-        }
-
-        const monto = Number(montoConfirmado?.value || 0);
-        if (!monto || monto <= 0) {
-          setStatus('error', 'Ingresá el monto exacto que pagaste.');
-          return;
-        }
-
-        if (!carrito.length) {
-          setStatus('error', 'Tu carrito está vacío.');
-          return;
-        }
-
-        setInputsLocked(true);
-        if (btnPague) {
-          btnPague.disabled = true;
-          btnPague.textContent = 'Procesando...';
-        }
-
-        setStatus('info', 'Subiendo comprobante...');
-
-        const order_code = generarOrderCode();
-        pedidoActual = await crearPedido({
-          order_code,
-          items: carrito,
-          total: totalCarritoActual(),
-          monto_pagado: monto,
-          canal: 'mercadopago'
-        });
-
-        showOrderCode(pedidoActual.order_code);
-
-        const comprobante_path = await subirComprobantePDF(file, pedidoActual.order_code);
-
-        setStatus('info', 'Generando link y notificando...');
-
-        const resp = await notificarPagoBackend({
-          pedido_id: pedidoActual.id,
-          order_code: pedidoActual.order_code,
-          comprobante_path,
-          monto_pagado: monto
-        });
-
-        linkComprobante = resp?.signed_url;
-
-        if (!linkComprobante) {
-          setStatus('error', 'Subió el comprobante pero no recibí el link. Revisá la Edge Function.');
-          setInputsLocked(false);
-          return;
-        }
-
-        if (btnEnviarWsp) {
-          btnEnviarWsp.style.display = 'block';
-          btnEnviarWsp.textContent = 'Enviar pedido por WhatsApp';
-        }
-        if (avisoAdjunto) avisoAdjunto.style.display = 'block';
-
-        setStatus('ok', 'Comprobante cargado. Ahora podés enviar el pedido por WhatsApp.');
-
-        // Bloqueo final para evitar duplicados
-        setInputsLocked(true);
-
-      } catch (err) {
-        console.error(err);
-        setStatus('error', 'Error subiendo/notificando el comprobante. Revisá consola y policies.');
-        setInputsLocked(false);
-      } finally {
-        if (btnPague) {
-          btnPague.disabled = false;
-          btnPague.textContent = 'Ya realicé el pago';
-        }
-      }
-    });
+  if (!fileSeleccionado) {
+    setStatus('error', 'Seleccioná el comprobante en PDF.');
+    throw new Error('Sin PDF');
   }
 
+  const monto = Number(montoConfirmado?.value || 0);
+  if (!monto || monto <= 0) {
+    setStatus('error', 'Ingresá el monto exacto que pagaste.');
+    throw new Error('Monto inválido');
+  }
+
+  // UI lock
   if (btnEnviarWsp) {
-    btnEnviarWsp.onclick = () => {
-      const monto = Number(montoConfirmado?.value || 0);
-      if (!pedidoActual || !linkComprobante) {
-        setStatus('warn', 'Primero subí el comprobante.');
-        return;
-      }
-      const msg = armarMensajeWhatsApp(pedidoActual.order_code, monto, linkComprobante);
-      abrirWhatsApp(WSP_NUMERO, msg);
-    };
+    btnEnviarWsp.disabled = true;
+    btnEnviarWsp.textContent = 'Procesando...';
   }
+  if (btnPague) {
+    btnPague.disabled = true;
+    btnPague.textContent = 'Procesando...';
+  }
+  setInputsLocked(true);
+
+  setStatus('info', 'Creando orden...');
+  const order_code = generarOrderCode();
+
+  pedidoActual = await crearPedido({
+    order_code,
+    items: carrito,
+    total: totalCarritoActual(),
+    monto_pagado: monto,
+    canal: 'mercadopago'
+  });
+
+  showOrderCode(pedidoActual.order_code);
+
+  setStatus('info', 'Subiendo comprobante...');
+  const comprobante_path = await subirComprobantePDF(fileSeleccionado, pedidoActual.order_code);
+
+  setStatus('info', 'Generando link y notificando...');
+  const resp = await notificarPagoBackend({
+    pedido_id: pedidoActual.id,
+    order_code: pedidoActual.order_code,
+    comprobante_path,
+    monto_pagado: monto
+  });
+
+  linkComprobante = resp?.signed_url;
+  if (!linkComprobante) {
+    setStatus('error', 'Se subió el PDF pero no recibí el link. Revisá la Edge Function.');
+    throw new Error('Sin signed_url');
+  }
+
+  setStatus('ok', 'Listo ✅ Ahora se abre WhatsApp con tu orden y el link.');
+  if (avisoAdjunto) avisoAdjunto.style.display = 'block';
+
+  return { monto, order_code: pedidoActual.order_code, link: linkComprobante };
+}
+
+// Botón final: procesa y abre WhatsApp
+if (btnEnviarWsp) {
+  btnEnviarWsp.onclick = async () => {
+    try {
+      const { monto, order_code, link } = await procesarPagoYObtenerLink();
+
+      setStatus(
+        'ok',
+        'Comprobante subido correctamente ✅ Ahora se abrirá WhatsApp. Adjuntá el PDF desde el clip 📎'
+      );
+
+      setTimeout(() => {
+        const msg = armarMensajeWhatsApp(order_code, monto, link);
+        abrirWhatsApp(WSP_NUMERO, msg);
+      }, 1200);
+
+    } catch (err) {
+      console.error(err);
+      setInputsLocked(false);
+      btnEnviarWsp.disabled = false;
+      btnEnviarWsp.textContent = 'Enviar pedido por WhatsApp';
+      btnPague.disabled = false;
+      btnPague.textContent = 'Ya realicé el pago';
+      // Dejar al usuario reintentar
+      setInputsLocked(false);
+      if (btnEnviarWsp) {
+        btnEnviarWsp.disabled = false;
+        btnEnviarWsp.textContent = 'Enviar pedido por WhatsApp';
+      }
+      if (btnPague) {
+        btnPague.disabled = false;
+        btnPague.textContent = 'Ya realicé el pago';
+      }
+    }
+  };
+}
+
 });
