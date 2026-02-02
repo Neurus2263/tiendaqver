@@ -4,15 +4,90 @@ document.addEventListener('DOMContentLoaded', () => {
   ========================= */
   const WSP_NUMERO = '5491127902076';
 
-  // ✅ Supabase (CDN v2)
   const SUPABASE_URL = "https://dsspsxiactuskjmodety.supabase.co";
   const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRzc3BzeGlhY3R1c2tqbW9kZXR5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk5OTEyMTAsImV4cCI6MjA4NTU2NzIxMH0.OGaX04gxjDvM7O6HPOIeEQZlhErGSp58lYminEfPm_Y";
 
-  const { createClient } = supabase;
-  const supa = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  /* =========================
+     HELPERS (UI)
+  ========================= */
+  function ensureStatusBox() {
+    const zona = document.getElementById('zona-comprobante');
+    if (!zona) return null;
+
+    let box = document.getElementById('estado-pago');
+    if (!box) {
+      box = document.createElement('div');
+      box.id = 'estado-pago';
+      box.style.marginTop = '12px';
+      zona.appendChild(box);
+    }
+    return box;
+  }
+
+  function setStatus(type, text) {
+    const box = ensureStatusBox();
+    if (!box) return;
+
+    box.style.padding = '10px';
+    box.style.borderRadius = '10px';
+    box.style.fontWeight = '700';
+    box.style.textAlign = 'center';
+
+    if (type === 'ok') {
+      box.style.background = '#eaffea';
+      box.style.border = '1px solid rgba(76,175,80,.35)';
+      box.style.color = '#2e7d32';
+      box.textContent = `✅ ${text}`;
+    } else if (type === 'warn') {
+      box.style.background = '#fff6e5';
+      box.style.border = '1px solid rgba(255,152,0,.35)';
+      box.style.color = '#8a5a00';
+      box.textContent = `⚠️ ${text}`;
+    } else if (type === 'error') {
+      box.style.background = '#ffecec';
+      box.style.border = '1px solid rgba(244,67,54,.35)';
+      box.style.color = '#b71c1c';
+      box.textContent = `❌ ${text}`;
+    } else {
+      box.style.background = '#f3ecff';
+      box.style.border = '1px solid rgba(155,126,219,.35)';
+      box.style.color = '#444';
+      box.textContent = text;
+    }
+  }
+
+  function showOrderCode(orderCode) {
+    const zona = document.getElementById('zona-comprobante');
+    if (!zona) return;
+
+    let el = document.getElementById('order-code-box');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'order-code-box';
+      el.style.marginTop = '12px';
+      el.style.padding = '10px';
+      el.style.borderRadius = '12px';
+      el.style.border = '2px solid rgba(155,126,219,.35)';
+      el.style.background = '#fff';
+      el.style.textAlign = 'center';
+      zona.appendChild(el);
+    }
+
+    el.innerHTML = `
+      <div style="font-size:13px;color:#666;">Nro de orden</div>
+      <div style="font-size:18px;font-weight:800;color:#7a5fc5;letter-spacing:.5px;">${orderCode}</div>
+    `;
+  }
+
+  function setInputsLocked(locked) {
+    const inputComprobante = document.getElementById('input-comprobante');
+    const montoConfirmado = document.getElementById('monto-confirmado');
+    if (inputComprobante) inputComprobante.disabled = !!locked;
+    if (montoConfirmado) montoConfirmado.disabled = !!locked;
+  }
 
   /* =========================
-     HELPERS
+     HELPERS (GENERAL)
   ========================= */
   function normalizar(txt) {
     return (txt || '')
@@ -32,10 +107,53 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function abrirWhatsApp(phoneE164, mensaje) {
-    // ✅ Funciona en PC + Android
     const text = encodeURIComponent(mensaje);
     const url = `https://api.whatsapp.com/send?phone=${phoneE164}&text=${text}`;
     window.location.href = url;
+  }
+
+  /* =========================
+     CLICK ROBUSTO: "YA REALICÉ EL PAGO"
+     - Esto funciona aunque falle todo lo demás.
+  ========================= */
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('#btn-pague');
+    if (!btn) return;
+
+    const zona = document.getElementById('zona-comprobante');
+    if (!zona) return;
+
+    zona.style.display = 'block';
+
+    const btnEnviarWsp = document.getElementById('btn-enviar-wsp');
+    const avisoAdjunto = document.getElementById('aviso-adjunto');
+
+    if (btnEnviarWsp) btnEnviarWsp.style.display = 'none';
+    if (avisoAdjunto) avisoAdjunto.style.display = 'none';
+
+    setInputsLocked(false);
+    setStatus('info', 'Subí el comprobante en PDF y escribí el monto exacto.');
+  });
+
+  /* =========================
+     A PARTIR DE ACÁ: TODO TU SISTEMA
+     (se protege para que no mate el botón)
+  ========================= */
+  let supa = null;
+
+  try {
+    if (!window.supabase || !window.supabase.createClient) {
+      // Si Supabase no carga, igual dejamos el botón funcionando.
+      setStatus('warn', 'Supabase no cargó. El botón funciona, pero no se podrá subir comprobante.');
+      return;
+    }
+
+    const { createClient } = supabase;
+    supa = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  } catch (err) {
+    console.error(err);
+    setStatus('error', 'No pude inicializar Supabase.');
+    return;
   }
 
   /* =========================
@@ -108,7 +226,6 @@ document.addEventListener('DOMContentLoaded', () => {
   /* =========================
      STOCK GLOBAL (SUPABASE)
   ========================= */
-
   let productosDB = new Map();
 
   async function cargarProductosDB() {
@@ -118,7 +235,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (error) {
       console.error(error);
-      alert('No pude leer productos (Supabase). Revisá RLS/policies.');
       return;
     }
 
@@ -187,17 +303,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     try {
       const { data, error } = await supa.rpc('decrement_stock', { p_nombre: nombre });
-
       if (error) {
         console.error(error);
-        alert('Error descontando stock (productos). Revisá función/policies.');
         return;
       }
 
       const nuevoStock = Number(data);
 
       if (nuevoStock < 0) {
-        alert('Sin stock');
         if (stockEl) stockEl.textContent = '0';
         card.dataset.stock = '0';
         card.classList.add('sin-stock');
@@ -228,8 +341,7 @@ document.addEventListener('DOMContentLoaded', () => {
   /* =========================
      TONOS (SUPABASE)
   ========================= */
-  let modalActual = null;
-  let productoActual = null; // {id, nombre, precioBase}
+  let productoActual = null;
 
   async function cargarTonosParaProducto(productoId) {
     const { data, error } = await supa
@@ -240,7 +352,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (error) {
       console.error(error);
-      alert('No pude leer tonos (Supabase). Revisá RLS/policies de tonos.');
       return [];
     }
     return data || [];
@@ -266,7 +377,7 @@ document.addEventListener('DOMContentLoaded', () => {
         badge.textContent = '—';
         btn.disabled = true;
         btn.classList.add('is-out');
-        btn.title = 'Tono no cargado en Supabase';
+        btn.title = 'Tono no cargado';
         return;
       }
 
@@ -275,7 +386,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
       btn.dataset.stock = String(s);
       btn.dataset.precio = String(p);
-
       badge.textContent = String(s);
 
       if (s <= 0) {
@@ -298,18 +408,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const nombreProducto = h3.textContent.trim();
       const row = productosDB.get(normalizar(nombreProducto));
-
-      if (!row) {
-        alert('Este producto no está en Supabase (tabla productos). Revisá el nombre.');
-        return;
-      }
+      if (!row) return;
 
       productoActual = { id: row.id, nombre: row.nombre, precioBase: Number(row.precio || 0) };
 
       const modal = document.getElementById(`modal-${btn.dataset.producto}`);
       if (!modal) return;
-
-      modalActual = modal;
 
       modal.style.display = 'flex';
       document.body.classList.add('modal-abierto');
@@ -324,7 +428,6 @@ document.addEventListener('DOMContentLoaded', () => {
       const modal = btn.closest('.modal-tonos');
       if (modal) modal.style.display = 'none';
       document.body.classList.remove('modal-abierto');
-      modalActual = null;
       productoActual = null;
     };
   });
@@ -354,24 +457,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (error) {
         console.error(error);
-        alert('Error descontando stock (tonos). Revisá función/policies.');
         return;
       }
 
       const nuevoStock = Number(data);
-
-      if (nuevoStock < 0) {
-        alert('Sin stock en ese tono');
-        const badge = btnTono.querySelector('.stock-mini');
-        if (badge) badge.textContent = '0';
-        btnTono.classList.add('is-out');
-        btnTono.title = 'Sin stock';
-        return;
-      }
+      if (nuevoStock < 0) return;
 
       const idCarrito = `${productoActual.id}:${tono}`;
       const nombreCarrito = `${productoActual.nombre} (Tono ${tono})`;
-
       agregarOIncrementar(idCarrito, nombreCarrito, precio);
 
       btnTono.dataset.stock = String(nuevoStock);
@@ -381,11 +474,9 @@ document.addEventListener('DOMContentLoaded', () => {
       if (nuevoStock <= 0) {
         btnTono.disabled = true;
         btnTono.classList.add('is-out');
-        btnTono.title = 'Sin stock';
       } else {
         btnTono.disabled = false;
         btnTono.classList.remove('is-out');
-        btnTono.title = `Stock: ${nuevoStock}`;
       }
     } finally {
       btnTono.dataset.loading = '0';
@@ -403,7 +494,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (btnMP && modalMP) {
     btnMP.onclick = () => {
       if (!carrito.length) {
-        alert('Tu carrito está vacío.');
+        setStatus('warn', 'Tu carrito está vacío.');
         return;
       }
       modalMP.style.display = 'flex';
@@ -419,126 +510,16 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   /* =========================
-     FLUJO COMPROBANTE + WHATSAPP + EMAIL
+     COMPROBANTE + WHATSAPP + EMAIL
   ========================= */
-  const btnPague = document.getElementById('btn-pague');
-  const zonaComprobante = document.getElementById('zona-comprobante');
   const inputComprobante = document.getElementById('input-comprobante');
   const montoConfirmado = document.getElementById('monto-confirmado');
   const btnEnviarWsp = document.getElementById('btn-enviar-wsp');
   const avisoAdjunto = document.getElementById('aviso-adjunto');
+  const btnPague = document.getElementById('btn-pague');
 
-  let pedidoActual = null; // {id, order_code}
+  let pedidoActual = null;   // {id, order_code}
   let linkComprobante = null;
-
-  // UI helpers (mensajes dentro del modal)
-  let uiMsg = null;
-  let uiOrder = null;
-  let uiLoading = null;
-
-  function limpiarMensajesUI() {
-    if (uiMsg) uiMsg.remove();
-    if (uiOrder) uiOrder.remove();
-    if (uiLoading) uiLoading.remove();
-    uiMsg = uiOrder = uiLoading = null;
-  }
-
-  function mostrarLoading(texto = 'Subiendo comprobante...') {
-    if (!zonaComprobante) return;
-    if (uiLoading) uiLoading.remove();
-
-    uiLoading = document.createElement('div');
-    uiLoading.style.marginTop = '12px';
-    uiLoading.style.padding = '10px';
-    uiLoading.style.borderRadius = '10px';
-    uiLoading.style.background = '#f3ecff';
-    uiLoading.style.display = 'flex';
-    uiLoading.style.alignItems = 'center';
-    uiLoading.style.justifyContent = 'center';
-    uiLoading.style.gap = '10px';
-    uiLoading.innerHTML = `
-      <span style="display:inline-block;width:14px;height:14px;border:2px solid #9b7edb;border-top-color:transparent;border-radius:50%;animation:spin .8s linear infinite;"></span>
-      <span style="font-weight:600;color:#444;">${texto}</span>
-    `;
-
-    // keyframes inline (solo una vez)
-    if (!document.getElementById('spin-keyframes')) {
-      const style = document.createElement('style');
-      style.id = 'spin-keyframes';
-      style.textContent = `@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`;
-      document.head.appendChild(style);
-    }
-
-    zonaComprobante.appendChild(uiLoading);
-  }
-
-  function mostrarOrden(orderCode) {
-    if (!zonaComprobante) return;
-    if (uiOrder) uiOrder.remove();
-
-    uiOrder = document.createElement('div');
-    uiOrder.style.marginTop = '12px';
-    uiOrder.style.padding = '10px';
-    uiOrder.style.borderRadius = '12px';
-    uiOrder.style.border = '2px solid rgba(155,126,219,.35)';
-    uiOrder.style.background = '#fff';
-    uiOrder.style.textAlign = 'center';
-    uiOrder.innerHTML = `
-      <div style="font-size:13px;color:#666;">Nro de orden</div>
-      <div style="font-size:18px;font-weight:800;color:#7a5fc5;letter-spacing:.5px;">${orderCode}</div>
-    `;
-    zonaComprobante.appendChild(uiOrder);
-  }
-
-  function mostrarOK(texto) {
-    if (!zonaComprobante) return;
-    if (uiMsg) uiMsg.remove();
-
-    uiMsg = document.createElement('div');
-    uiMsg.style.marginTop = '10px';
-    uiMsg.style.padding = '10px';
-    uiMsg.style.borderRadius = '10px';
-    uiMsg.style.background = '#eaffea';
-    uiMsg.style.border = '1px solid rgba(76,175,80,.35)';
-    uiMsg.style.color = '#2e7d32';
-    uiMsg.style.fontWeight = '700';
-    uiMsg.style.textAlign = 'center';
-    uiMsg.textContent = `✅ ${texto}`;
-    zonaComprobante.appendChild(uiMsg);
-  }
-
-  function mostrarError(texto) {
-    if (!zonaComprobante) return;
-    if (uiMsg) uiMsg.remove();
-
-    uiMsg = document.createElement('div');
-    uiMsg.style.marginTop = '10px';
-    uiMsg.style.padding = '10px';
-    uiMsg.style.borderRadius = '10px';
-    uiMsg.style.background = '#ffecec';
-    uiMsg.style.border = '1px solid rgba(244,67,54,.35)';
-    uiMsg.style.color = '#b71c1c';
-    uiMsg.style.fontWeight = '700';
-    uiMsg.style.textAlign = 'center';
-    uiMsg.textContent = `⚠️ ${texto}`;
-    zonaComprobante.appendChild(uiMsg);
-  }
-
-  function setBloqueoInputs(locked) {
-    if (inputComprobante) inputComprobante.disabled = !!locked;
-    if (montoConfirmado) montoConfirmado.disabled = !!locked;
-  }
-
-  if (btnPague && zonaComprobante) {
-    btnPague.onclick = () => {
-      zonaComprobante.style.display = 'block';
-      if (btnEnviarWsp) btnEnviarWsp.style.display = 'none';
-      if (avisoAdjunto) avisoAdjunto.style.display = 'none';
-
-      limpiarMensajesUI();
-      setBloqueoInputs(false);
-    };
-  }
 
   async function crearPedido({ order_code, items, total, monto_pagado, canal }) {
     const { data, error } = await supa
@@ -564,10 +545,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const { data, error } = await supa.storage
       .from('comprobantes')
-      .upload(path, file, {
-        contentType: 'application/pdf',
-        upsert: false
-      });
+      .upload(path, file, { contentType: 'application/pdf', upsert: false });
 
     if (error) throw error;
     return data.path;
@@ -577,7 +555,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const { data, error } = await supa.functions.invoke('notificar-pago', {
       body: { pedido_id, order_code, comprobante_path, monto_pagado }
     });
-
     if (error) throw error;
     return data; // { signed_url }
   }
@@ -599,47 +576,44 @@ ${detalle}
   if (inputComprobante) {
     inputComprobante.addEventListener('change', async () => {
       try {
-        limpiarMensajesUI();
-        linkComprobante = null;
         pedidoActual = null;
+        linkComprobante = null;
 
         const file = inputComprobante.files?.[0];
         if (!file) return;
 
         if (file.type !== 'application/pdf') {
-          mostrarError('Solo se permite PDF.');
+          setStatus('error', 'Solo se permite PDF.');
           inputComprobante.value = '';
           return;
         }
 
         const maxMB = 5;
         if (file.size > maxMB * 1024 * 1024) {
-          mostrarError(`El PDF no puede pesar más de ${maxMB}MB.`);
+          setStatus('error', `El PDF no puede pesar más de ${maxMB}MB.`);
           inputComprobante.value = '';
           return;
         }
 
         const monto = Number(montoConfirmado?.value || 0);
         if (!monto || monto <= 0) {
-          mostrarError('Ingresá el monto exacto que pagaste.');
+          setStatus('error', 'Ingresá el monto exacto que pagaste.');
           return;
         }
 
         if (!carrito.length) {
-          mostrarError('Tu carrito está vacío.');
+          setStatus('error', 'Tu carrito está vacío.');
           return;
         }
 
-        // UI: loading + lock
-        mostrarLoading('Subiendo comprobante...');
-        setBloqueoInputs(true);
-
+        setInputsLocked(true);
         if (btnPague) {
           btnPague.disabled = true;
           btnPague.textContent = 'Procesando...';
         }
 
-        // 1) Crear pedido
+        setStatus('info', 'Subiendo comprobante...');
+
         const order_code = generarOrderCode();
         pedidoActual = await crearPedido({
           order_code,
@@ -649,14 +623,12 @@ ${detalle}
           canal: 'mercadopago'
         });
 
-        mostrarOrden(pedidoActual.order_code);
+        showOrderCode(pedidoActual.order_code);
 
-        // 2) Subir PDF
-        mostrarLoading('Subiendo PDF a Supabase...');
         const comprobante_path = await subirComprobantePDF(file, pedidoActual.order_code);
 
-        // 3) Backend: link + mail + update
-        mostrarLoading('Generando link y enviando notificación...');
+        setStatus('info', 'Generando link y notificando...');
+
         const resp = await notificarPagoBackend({
           pedido_id: pedidoActual.id,
           order_code: pedidoActual.order_code,
@@ -667,33 +639,26 @@ ${detalle}
         linkComprobante = resp?.signed_url;
 
         if (!linkComprobante) {
-          mostrarError('Subió el comprobante, pero no recibí el link. Revisá la Edge Function.');
-          setBloqueoInputs(false);
+          setStatus('error', 'Subió el comprobante pero no recibí el link. Revisá la Edge Function.');
+          setInputsLocked(false);
           return;
         }
-
-        // 4) UI OK + habilitar WhatsApp
-        if (uiLoading) uiLoading.remove();
-
-        mostrarOK('Comprobante cargado correctamente');
 
         if (btnEnviarWsp) {
           btnEnviarWsp.style.display = 'block';
           btnEnviarWsp.textContent = 'Enviar pedido por WhatsApp';
         }
+        if (avisoAdjunto) avisoAdjunto.style.display = 'block';
 
-        if (avisoAdjunto) {
-          avisoAdjunto.style.display = 'block';
-        }
+        setStatus('ok', 'Comprobante cargado. Ahora podés enviar el pedido por WhatsApp.');
 
-        // Dejá bloqueado para evitar doble carga
-        setBloqueoInputs(true);
+        // Bloqueo final para evitar duplicados
+        setInputsLocked(true);
 
       } catch (err) {
         console.error(err);
-        if (uiLoading) uiLoading.remove();
-        mostrarError('Error subiendo/notificando el comprobante. Revisá consola y policies de Supabase.');
-        setBloqueoInputs(false);
+        setStatus('error', 'Error subiendo/notificando el comprobante. Revisá consola y policies.');
+        setInputsLocked(false);
       } finally {
         if (btnPague) {
           btnPague.disabled = false;
@@ -706,12 +671,10 @@ ${detalle}
   if (btnEnviarWsp) {
     btnEnviarWsp.onclick = () => {
       const monto = Number(montoConfirmado?.value || 0);
-
       if (!pedidoActual || !linkComprobante) {
-        alert('Primero subí el comprobante.');
+        setStatus('warn', 'Primero subí el comprobante.');
         return;
       }
-
       const msg = armarMensajeWhatsApp(pedidoActual.order_code, monto, linkComprobante);
       abrirWhatsApp(WSP_NUMERO, msg);
     };
