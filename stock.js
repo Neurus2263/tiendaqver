@@ -12,6 +12,33 @@ document.addEventListener('DOMContentLoaded', () => {
   const supa = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
   /* =========================
+     HELPERS
+  ========================= */
+  function normalizar(txt) {
+    return (txt || '')
+      .toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  function generarOrderCode() {
+    const d = new Date();
+    const y = d.getFullYear().toString().slice(-2);
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    const rand = Math.random().toString(36).slice(2, 7).toUpperCase();
+    return `QVER-${y}${m}${day}-${rand}`;
+  }
+
+  function abrirWhatsApp(phoneE164, mensaje) {
+    // ✅ Funciona en PC + Android
+    const text = encodeURIComponent(mensaje);
+    const url = `https://api.whatsapp.com/send?phone=${phoneE164}&text=${text}`;
+    window.location.href = url;
+  }
+
+  /* =========================
      CARRITO
   ========================= */
   let carrito = [];
@@ -74,21 +101,14 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  /* =========================
-     STOCK GLOBAL (SUPABASE)
-     - (productos sin tonos) se maneja en productos
-     - (productos con tonos) se maneja en tonos
-  ========================= */
-
-  function normalizar(txt) {
-    return (txt || '')
-      .toLowerCase()
-      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-      .replace(/\s+/g, ' ')
-      .trim();
+  function totalCarritoActual() {
+    return carrito.reduce((acc, p) => acc + (p.precio * p.cantidad), 0);
   }
 
-  // Mapa: nombre_normalizado -> row {id,nombre,stock,precio}
+  /* =========================
+     STOCK GLOBAL (SUPABASE)
+  ========================= */
+
   let productosDB = new Map();
 
   async function cargarProductosDB() {
@@ -103,7 +123,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     productosDB.clear();
-    data.forEach(row => {
+    (data || []).forEach(row => {
       productosDB.set(normalizar(row.nombre), row);
     });
   }
@@ -114,12 +134,10 @@ document.addEventListener('DOMContentLoaded', () => {
       const stockEl = card.querySelector('.stock');
       const btn = card.querySelector('.btn-agregar');
 
-      // Solo productos con botón "Agregar" (sin tonos)
       if (!btn || !h3) return;
 
       const key = normalizar(h3.textContent);
       const row = productosDB.get(key);
-
       if (!row) return;
 
       card.dataset.precio = String(row.precio);
@@ -147,7 +165,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   refrescarStockGlobal();
 
-  // ✅ click "Agregar" (productos sin tonos) descuenta stock en productos (tu RPC anterior)
   document.addEventListener('click', async (e) => {
     const btn = e.target.closest('.btn-agregar');
     if (!btn) return;
@@ -210,12 +227,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   /* =========================
      TONOS (SUPABASE)
-     - lee tonos reales
-     - muestra badge con stock
-     - deshabilita agotados
-     - al elegir un tono: descuenta global y agrega al carrito
   ========================= */
-
   let modalActual = null;
   let productoActual = null; // {id, nombre, precioBase}
 
@@ -243,7 +255,6 @@ document.addEventListener('DOMContentLoaded', () => {
       const tono = String(btn.dataset.tono || '').trim();
       const row = map.get(tono);
 
-      // crear badge si no existe
       let badge = btn.querySelector('.stock-mini');
       if (!badge) {
         badge = document.createElement('span');
@@ -251,7 +262,6 @@ document.addEventListener('DOMContentLoaded', () => {
         btn.appendChild(badge);
       }
 
-      // Si ese tono no existe en DB, lo dejamos deshabilitado
       if (!row) {
         badge.textContent = '—';
         btn.disabled = true;
@@ -266,7 +276,6 @@ document.addEventListener('DOMContentLoaded', () => {
       btn.dataset.stock = String(s);
       btn.dataset.precio = String(p);
 
-      // mostrar stock
       badge.textContent = String(s);
 
       if (s <= 0) {
@@ -281,7 +290,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Abrir modal y cargar tonos desde DB
   document.querySelectorAll('.btn-elegir-tono').forEach(btn => {
     btn.onclick = async () => {
       const card = btn.closest('.producto');
@@ -311,7 +319,6 @@ document.addEventListener('DOMContentLoaded', () => {
     };
   });
 
-  // Cerrar modales tonos
   document.querySelectorAll('.cerrar-tonos').forEach(btn => {
     btn.onclick = () => {
       const modal = btn.closest('.modal-tonos');
@@ -322,7 +329,6 @@ document.addEventListener('DOMContentLoaded', () => {
     };
   });
 
-  // Click en un tono: descontar stock global y agregar al carrito
   document.addEventListener('click', async (e) => {
     const btnTono = e.target.closest('.tono');
     if (!btnTono) return;
@@ -356,7 +362,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (nuevoStock < 0) {
         alert('Sin stock en ese tono');
-        // badge a 0 por seguridad
         const badge = btnTono.querySelector('.stock-mini');
         if (badge) badge.textContent = '0';
         btnTono.classList.add('is-out');
@@ -364,15 +369,12 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
-      // agregar al carrito con ID único por tono
       const idCarrito = `${productoActual.id}:${tono}`;
       const nombreCarrito = `${productoActual.nombre} (Tono ${tono})`;
 
       agregarOIncrementar(idCarrito, nombreCarrito, precio);
 
-      // actualizar botón + badge
       btnTono.dataset.stock = String(nuevoStock);
-
       const badge = btnTono.querySelector('.stock-mini');
       if (badge) badge.textContent = String(nuevoStock);
 
@@ -388,12 +390,11 @@ document.addEventListener('DOMContentLoaded', () => {
     } finally {
       btnTono.dataset.loading = '0';
       btnTono.textContent = texto;
-      // si quedó disabled por 0, no hace falta tocar
     }
   });
 
   /* =========================
-     MERCADO PAGO (lo tuyo)
+     MERCADO PAGO (MODAL)
   ========================= */
   const btnMP = document.getElementById('btn-mp');
   const modalMP = document.getElementById('modal-mp');
@@ -401,6 +402,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (btnMP && modalMP) {
     btnMP.onclick = () => {
+      if (!carrito.length) {
+        alert('Tu carrito está vacío.');
+        return;
+      }
       modalMP.style.display = 'flex';
       document.body.classList.add('modal-abierto');
     };
@@ -410,6 +415,305 @@ document.addEventListener('DOMContentLoaded', () => {
     cerrarMP.onclick = () => {
       modalMP.style.display = 'none';
       document.body.classList.remove('modal-abierto');
+    };
+  }
+
+  /* =========================
+     FLUJO COMPROBANTE + WHATSAPP + EMAIL
+  ========================= */
+  const btnPague = document.getElementById('btn-pague');
+  const zonaComprobante = document.getElementById('zona-comprobante');
+  const inputComprobante = document.getElementById('input-comprobante');
+  const montoConfirmado = document.getElementById('monto-confirmado');
+  const btnEnviarWsp = document.getElementById('btn-enviar-wsp');
+  const avisoAdjunto = document.getElementById('aviso-adjunto');
+
+  let pedidoActual = null; // {id, order_code}
+  let linkComprobante = null;
+
+  // UI helpers (mensajes dentro del modal)
+  let uiMsg = null;
+  let uiOrder = null;
+  let uiLoading = null;
+
+  function limpiarMensajesUI() {
+    if (uiMsg) uiMsg.remove();
+    if (uiOrder) uiOrder.remove();
+    if (uiLoading) uiLoading.remove();
+    uiMsg = uiOrder = uiLoading = null;
+  }
+
+  function mostrarLoading(texto = 'Subiendo comprobante...') {
+    if (!zonaComprobante) return;
+    if (uiLoading) uiLoading.remove();
+
+    uiLoading = document.createElement('div');
+    uiLoading.style.marginTop = '12px';
+    uiLoading.style.padding = '10px';
+    uiLoading.style.borderRadius = '10px';
+    uiLoading.style.background = '#f3ecff';
+    uiLoading.style.display = 'flex';
+    uiLoading.style.alignItems = 'center';
+    uiLoading.style.justifyContent = 'center';
+    uiLoading.style.gap = '10px';
+    uiLoading.innerHTML = `
+      <span style="display:inline-block;width:14px;height:14px;border:2px solid #9b7edb;border-top-color:transparent;border-radius:50%;animation:spin .8s linear infinite;"></span>
+      <span style="font-weight:600;color:#444;">${texto}</span>
+    `;
+
+    // keyframes inline (solo una vez)
+    if (!document.getElementById('spin-keyframes')) {
+      const style = document.createElement('style');
+      style.id = 'spin-keyframes';
+      style.textContent = `@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`;
+      document.head.appendChild(style);
+    }
+
+    zonaComprobante.appendChild(uiLoading);
+  }
+
+  function mostrarOrden(orderCode) {
+    if (!zonaComprobante) return;
+    if (uiOrder) uiOrder.remove();
+
+    uiOrder = document.createElement('div');
+    uiOrder.style.marginTop = '12px';
+    uiOrder.style.padding = '10px';
+    uiOrder.style.borderRadius = '12px';
+    uiOrder.style.border = '2px solid rgba(155,126,219,.35)';
+    uiOrder.style.background = '#fff';
+    uiOrder.style.textAlign = 'center';
+    uiOrder.innerHTML = `
+      <div style="font-size:13px;color:#666;">Nro de orden</div>
+      <div style="font-size:18px;font-weight:800;color:#7a5fc5;letter-spacing:.5px;">${orderCode}</div>
+    `;
+    zonaComprobante.appendChild(uiOrder);
+  }
+
+  function mostrarOK(texto) {
+    if (!zonaComprobante) return;
+    if (uiMsg) uiMsg.remove();
+
+    uiMsg = document.createElement('div');
+    uiMsg.style.marginTop = '10px';
+    uiMsg.style.padding = '10px';
+    uiMsg.style.borderRadius = '10px';
+    uiMsg.style.background = '#eaffea';
+    uiMsg.style.border = '1px solid rgba(76,175,80,.35)';
+    uiMsg.style.color = '#2e7d32';
+    uiMsg.style.fontWeight = '700';
+    uiMsg.style.textAlign = 'center';
+    uiMsg.textContent = `✅ ${texto}`;
+    zonaComprobante.appendChild(uiMsg);
+  }
+
+  function mostrarError(texto) {
+    if (!zonaComprobante) return;
+    if (uiMsg) uiMsg.remove();
+
+    uiMsg = document.createElement('div');
+    uiMsg.style.marginTop = '10px';
+    uiMsg.style.padding = '10px';
+    uiMsg.style.borderRadius = '10px';
+    uiMsg.style.background = '#ffecec';
+    uiMsg.style.border = '1px solid rgba(244,67,54,.35)';
+    uiMsg.style.color = '#b71c1c';
+    uiMsg.style.fontWeight = '700';
+    uiMsg.style.textAlign = 'center';
+    uiMsg.textContent = `⚠️ ${texto}`;
+    zonaComprobante.appendChild(uiMsg);
+  }
+
+  function setBloqueoInputs(locked) {
+    if (inputComprobante) inputComprobante.disabled = !!locked;
+    if (montoConfirmado) montoConfirmado.disabled = !!locked;
+  }
+
+  if (btnPague && zonaComprobante) {
+    btnPague.onclick = () => {
+      zonaComprobante.style.display = 'block';
+      if (btnEnviarWsp) btnEnviarWsp.style.display = 'none';
+      if (avisoAdjunto) avisoAdjunto.style.display = 'none';
+
+      limpiarMensajesUI();
+      setBloqueoInputs(false);
+    };
+  }
+
+  async function crearPedido({ order_code, items, total, monto_pagado, canal }) {
+    const { data, error } = await supa
+      .from('pedidos')
+      .insert([{
+        order_code,
+        items,
+        total,
+        monto_pagado,
+        canal,
+        comprobante_url: null
+      }])
+      .select('id, order_code')
+      .single();
+
+    if (error) throw error;
+    return data;
+  }
+
+  async function subirComprobantePDF(file, orderCode) {
+    const fileName = `comprobante-${Date.now()}.pdf`;
+    const path = `${orderCode}/${fileName}`;
+
+    const { data, error } = await supa.storage
+      .from('comprobantes')
+      .upload(path, file, {
+        contentType: 'application/pdf',
+        upsert: false
+      });
+
+    if (error) throw error;
+    return data.path;
+  }
+
+  async function notificarPagoBackend({ pedido_id, order_code, comprobante_path, monto_pagado }) {
+    const { data, error } = await supa.functions.invoke('notificar-pago', {
+      body: { pedido_id, order_code, comprobante_path, monto_pagado }
+    });
+
+    if (error) throw error;
+    return data; // { signed_url }
+  }
+
+  function armarMensajeWhatsApp(orderCode, monto, link) {
+    const detalle = carrito.map(p => `- ${p.nombre} x${p.cantidad} = $${p.precio * p.cantidad}`).join('\n');
+    return (
+`Hola! Ya realicé el pago.
+🧾 Orden: ${orderCode}
+💰 Monto: $${monto}
+
+📎 Comprobante: ${link}
+
+Detalle:
+${detalle}
+`);
+  }
+
+  if (inputComprobante) {
+    inputComprobante.addEventListener('change', async () => {
+      try {
+        limpiarMensajesUI();
+        linkComprobante = null;
+        pedidoActual = null;
+
+        const file = inputComprobante.files?.[0];
+        if (!file) return;
+
+        if (file.type !== 'application/pdf') {
+          mostrarError('Solo se permite PDF.');
+          inputComprobante.value = '';
+          return;
+        }
+
+        const maxMB = 5;
+        if (file.size > maxMB * 1024 * 1024) {
+          mostrarError(`El PDF no puede pesar más de ${maxMB}MB.`);
+          inputComprobante.value = '';
+          return;
+        }
+
+        const monto = Number(montoConfirmado?.value || 0);
+        if (!monto || monto <= 0) {
+          mostrarError('Ingresá el monto exacto que pagaste.');
+          return;
+        }
+
+        if (!carrito.length) {
+          mostrarError('Tu carrito está vacío.');
+          return;
+        }
+
+        // UI: loading + lock
+        mostrarLoading('Subiendo comprobante...');
+        setBloqueoInputs(true);
+
+        if (btnPague) {
+          btnPague.disabled = true;
+          btnPague.textContent = 'Procesando...';
+        }
+
+        // 1) Crear pedido
+        const order_code = generarOrderCode();
+        pedidoActual = await crearPedido({
+          order_code,
+          items: carrito,
+          total: totalCarritoActual(),
+          monto_pagado: monto,
+          canal: 'mercadopago'
+        });
+
+        mostrarOrden(pedidoActual.order_code);
+
+        // 2) Subir PDF
+        mostrarLoading('Subiendo PDF a Supabase...');
+        const comprobante_path = await subirComprobantePDF(file, pedidoActual.order_code);
+
+        // 3) Backend: link + mail + update
+        mostrarLoading('Generando link y enviando notificación...');
+        const resp = await notificarPagoBackend({
+          pedido_id: pedidoActual.id,
+          order_code: pedidoActual.order_code,
+          comprobante_path,
+          monto_pagado: monto
+        });
+
+        linkComprobante = resp?.signed_url;
+
+        if (!linkComprobante) {
+          mostrarError('Subió el comprobante, pero no recibí el link. Revisá la Edge Function.');
+          setBloqueoInputs(false);
+          return;
+        }
+
+        // 4) UI OK + habilitar WhatsApp
+        if (uiLoading) uiLoading.remove();
+
+        mostrarOK('Comprobante cargado correctamente');
+
+        if (btnEnviarWsp) {
+          btnEnviarWsp.style.display = 'block';
+          btnEnviarWsp.textContent = 'Enviar pedido por WhatsApp';
+        }
+
+        if (avisoAdjunto) {
+          avisoAdjunto.style.display = 'block';
+        }
+
+        // Dejá bloqueado para evitar doble carga
+        setBloqueoInputs(true);
+
+      } catch (err) {
+        console.error(err);
+        if (uiLoading) uiLoading.remove();
+        mostrarError('Error subiendo/notificando el comprobante. Revisá consola y policies de Supabase.');
+        setBloqueoInputs(false);
+      } finally {
+        if (btnPague) {
+          btnPague.disabled = false;
+          btnPague.textContent = 'Ya realicé el pago';
+        }
+      }
+    });
+  }
+
+  if (btnEnviarWsp) {
+    btnEnviarWsp.onclick = () => {
+      const monto = Number(montoConfirmado?.value || 0);
+
+      if (!pedidoActual || !linkComprobante) {
+        alert('Primero subí el comprobante.');
+        return;
+      }
+
+      const msg = armarMensajeWhatsApp(pedidoActual.order_code, monto, linkComprobante);
+      abrirWhatsApp(WSP_NUMERO, msg);
     };
   }
 });
