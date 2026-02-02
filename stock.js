@@ -6,7 +6,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ✅ Supabase (CDN v2)
   const SUPABASE_URL = "https://dsspsxiactuskjmodety.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRzc3BzeGlhY3R1c2tqbW9kZXR5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk5OTEyMTAsImV4cCI6MjA4NTU2NzIxMH0.OGaX04gxjDvM7O6HPOIeEQZlhErGSp58lYminEfPm_Y";
+  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRzc3BzeGlhY3R1c2tqbW9kZXR5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk5OTEyMTAsImV4cCI6MjA4NTU2NzIxMH0.OGaX04gxjDvM7O6HPOIeEQZlhErGSp58lYminEfPm_Y";
+
   const { createClient } = supabase;
   const supa = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -75,19 +76,19 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
   /* =========================
      STOCK GLOBAL (SUPABASE)
-     - carga stock real
-     - descuenta global al "Agregar"
+     - (productos sin tonos) se maneja en productos
+     - (productos con tonos) se maneja en tonos
   ========================= */
 
   function normalizar(txt) {
     return (txt || '')
       .toLowerCase()
-      .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // saca acentos
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
       .replace(/\s+/g, ' ')
       .trim();
   }
 
-  // Mapa: nombre_normalizado -> row
+  // Mapa: nombre_normalizado -> row {id,nombre,stock,precio}
   let productosDB = new Map();
 
   async function cargarProductosDB() {
@@ -97,7 +98,7 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
     if (error) {
       console.error(error);
-      alert('No pude leer stock (Supabase). Revisá RLS/policies.');
+      alert('No pude leer productos (Supabase). Revisá RLS/policies.');
       return;
     }
 
@@ -119,18 +120,14 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
       const key = normalizar(h3.textContent);
       const row = productosDB.get(key);
 
-      // Si no está en la DB, no tocamos nada (queda como estaba)
       if (!row) return;
 
-      // Precio: si querés, lo sincronizamos también
       card.dataset.precio = String(row.precio);
 
-      // Stock visible
       const s = Number(row.stock ?? 0);
       card.dataset.stock = String(s);
       if (stockEl) stockEl.textContent = String(s);
 
-      // Estado botón
       if (s <= 0) {
         btn.disabled = true;
         btn.textContent = 'Sin stock';
@@ -148,10 +145,9 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
     pintarStockEnCards();
   }
 
-  // ✅ cargar stock al entrar
   refrescarStockGlobal();
 
-  // ✅ click "Agregar" con descuento global real
+  // ✅ click "Agregar" (productos sin tonos) descuenta stock en productos (tu RPC anterior)
   document.addEventListener('click', async (e) => {
     const btn = e.target.closest('.btn-agregar');
     if (!btn) return;
@@ -166,7 +162,6 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
     const precio = Number(card.dataset.precio || 0);
     const stockEl = card.querySelector('.stock');
 
-    // Evitar doble click mientras procesa
     if (btn.dataset.loading === '1') return;
     btn.dataset.loading = '1';
     const textoOriginal = btn.textContent;
@@ -178,11 +173,10 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
       if (error) {
         console.error(error);
-        alert('Error descontando stock. Revisá la función/policies.');
+        alert('Error descontando stock (productos). Revisá función/policies.');
         return;
       }
 
-      // data = nuevo stock o -1 si no hay
       const nuevoStock = Number(data);
 
       if (nuevoStock < 0) {
@@ -195,10 +189,8 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
         return;
       }
 
-      // ✅ ya descontó global -> recién ahora lo agregamos al carrito
       agregarOIncrementar(nombre, nombre, precio);
 
-      // pintar nuevo stock
       card.dataset.stock = String(nuevoStock);
       if (stockEl) stockEl.textContent = String(nuevoStock);
 
@@ -212,29 +204,192 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
       }
     } finally {
       btn.dataset.loading = '0';
-      // si quedó sin stock ya seteamos texto, si no, restauramos
       if (!btn.disabled) btn.textContent = textoOriginal === 'Agregar' ? 'Agregar' : textoOriginal;
     }
   });
 
   /* =========================
-     MODALES TONOS (lo tuyo)
+     TONOS (SUPABASE)
+     - lee tonos reales
+     - muestra badge con stock
+     - deshabilita agotados
+     - al elegir un tono: descuenta global y agrega al carrito
   ========================= */
+
+  let modalActual = null;
+  let productoActual = null; // {id, nombre, precioBase}
+
+  async function cargarTonosParaProducto(productoId) {
+    const { data, error } = await supa
+      .from('tonos')
+      .select('tono, stock, precio')
+      .eq('producto_id', productoId)
+      .order('tono', { ascending: true });
+
+    if (error) {
+      console.error(error);
+      alert('No pude leer tonos (Supabase). Revisá RLS/policies de tonos.');
+      return [];
+    }
+    return data || [];
+  }
+
+  function pintarTonosEnModal(modal, tonos) {
+    const botones = modal.querySelectorAll('.tono');
+    const map = new Map();
+    tonos.forEach(t => map.set(String(t.tono).trim(), t));
+
+    botones.forEach(btn => {
+      const tono = String(btn.dataset.tono || '').trim();
+      const row = map.get(tono);
+
+      // crear badge si no existe
+      let badge = btn.querySelector('.stock-mini');
+      if (!badge) {
+        badge = document.createElement('span');
+        badge.className = 'stock-mini';
+        btn.appendChild(badge);
+      }
+
+      // Si ese tono no existe en DB, lo dejamos deshabilitado
+      if (!row) {
+        badge.textContent = '—';
+        btn.disabled = true;
+        btn.classList.add('is-out');
+        btn.title = 'Tono no cargado en Supabase';
+        return;
+      }
+
+      const s = Number(row.stock ?? 0);
+      const p = Number(row.precio ?? (productoActual?.precioBase ?? 0));
+
+      btn.dataset.stock = String(s);
+      btn.dataset.precio = String(p);
+
+      // mostrar stock
+      badge.textContent = String(s);
+
+      if (s <= 0) {
+        btn.disabled = true;
+        btn.classList.add('is-out');
+        btn.title = 'Sin stock';
+      } else {
+        btn.disabled = false;
+        btn.classList.remove('is-out');
+        btn.title = `Stock: ${s}`;
+      }
+    });
+  }
+
+  // Abrir modal y cargar tonos desde DB
   document.querySelectorAll('.btn-elegir-tono').forEach(btn => {
-    btn.onclick = () => {
+    btn.onclick = async () => {
+      const card = btn.closest('.producto');
+      const h3 = card?.querySelector('h3');
+      if (!card || !h3) return;
+
+      const nombreProducto = h3.textContent.trim();
+      const row = productosDB.get(normalizar(nombreProducto));
+
+      if (!row) {
+        alert('Este producto no está en Supabase (tabla productos). Revisá el nombre.');
+        return;
+      }
+
+      productoActual = { id: row.id, nombre: row.nombre, precioBase: Number(row.precio || 0) };
+
       const modal = document.getElementById(`modal-${btn.dataset.producto}`);
       if (!modal) return;
+
+      modalActual = modal;
+
       modal.style.display = 'flex';
       document.body.classList.add('modal-abierto');
+
+      const tonos = await cargarTonosParaProducto(productoActual.id);
+      pintarTonosEnModal(modal, tonos);
     };
   });
 
+  // Cerrar modales tonos
   document.querySelectorAll('.cerrar-tonos').forEach(btn => {
     btn.onclick = () => {
       const modal = btn.closest('.modal-tonos');
       if (modal) modal.style.display = 'none';
       document.body.classList.remove('modal-abierto');
+      modalActual = null;
+      productoActual = null;
     };
+  });
+
+  // Click en un tono: descontar stock global y agregar al carrito
+  document.addEventListener('click', async (e) => {
+    const btnTono = e.target.closest('.tono');
+    if (!btnTono) return;
+
+    const modal = btnTono.closest('.modal-tonos');
+    if (!modal || !productoActual) return;
+
+    const tono = String(btnTono.dataset.tono || '').trim();
+    const precio = Number(btnTono.dataset.precio || productoActual.precioBase || 0);
+
+    if (btnTono.dataset.loading === '1') return;
+    btnTono.dataset.loading = '1';
+
+    const texto = btnTono.textContent;
+    btnTono.textContent = '...';
+    btnTono.disabled = true;
+
+    try {
+      const { data, error } = await supa.rpc('decrement_tono_stock', {
+        p_producto_id: productoActual.id,
+        p_tono: tono
+      });
+
+      if (error) {
+        console.error(error);
+        alert('Error descontando stock (tonos). Revisá función/policies.');
+        return;
+      }
+
+      const nuevoStock = Number(data);
+
+      if (nuevoStock < 0) {
+        alert('Sin stock en ese tono');
+        // badge a 0 por seguridad
+        const badge = btnTono.querySelector('.stock-mini');
+        if (badge) badge.textContent = '0';
+        btnTono.classList.add('is-out');
+        btnTono.title = 'Sin stock';
+        return;
+      }
+
+      // agregar al carrito con ID único por tono
+      const idCarrito = `${productoActual.id}:${tono}`;
+      const nombreCarrito = `${productoActual.nombre} (Tono ${tono})`;
+
+      agregarOIncrementar(idCarrito, nombreCarrito, precio);
+
+      // actualizar botón + badge
+      btnTono.dataset.stock = String(nuevoStock);
+
+      const badge = btnTono.querySelector('.stock-mini');
+      if (badge) badge.textContent = String(nuevoStock);
+
+      if (nuevoStock <= 0) {
+        btnTono.disabled = true;
+        btnTono.classList.add('is-out');
+        btnTono.title = 'Sin stock';
+      } else {
+        btnTono.disabled = false;
+        btnTono.classList.remove('is-out');
+        btnTono.title = `Stock: ${nuevoStock}`;
+      }
+    } finally {
+      btnTono.dataset.loading = '0';
+      btnTono.textContent = texto;
+      // si quedó disabled por 0, no hace falta tocar
+    }
   });
 
   /* =========================

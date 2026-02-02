@@ -11,7 +11,7 @@
 body {
   margin: 0;
   font-family: 'Poppins', sans-serif;
-  background: #fff;
+  background: #ffffff;
   color: var(--texto);
 }
 
@@ -142,7 +142,6 @@ h2 {
   background: #f3ecff;
   color: var(--texto);
 
-  /* asegura alineación igual en todas las cards */
   min-height: 34px;
   display:flex;
   align-items:center;
@@ -165,7 +164,7 @@ h2 {
   color: white;
   cursor: pointer;
   font-weight: 600;
-  margin-top: auto; /* siempre abajo */
+  margin-top: auto;
 }
 
 .btn-agregar {
@@ -226,7 +225,6 @@ h2 {
   position: relative;
 }
 
-/* Botones de cierre: TONOS (class) y MP (id) */
 .cerrar-tonos,
 #cerrar-mp{
   position: absolute;
@@ -254,7 +252,6 @@ h2 {
   transform: rotate(90deg) scale(1.1);
 }
 
-/* GRID TONOS */
 .grid-tonos{
   display:grid;
   grid-template-columns: repeat(4, 1fr);
@@ -289,7 +286,6 @@ h2 {
   color: white;
 }
 
-/* Modal MP título */
 #modal-mp h3 {
   color: #9b7edb;
   text-align: center;
@@ -395,7 +391,6 @@ h2 {
   margin: .5rem 0;
 }
 
-/* Cruz del carrito */
 .btn-eliminar {
   background: transparent;
   border: none;
@@ -409,14 +404,12 @@ h2 {
   transform: scale(1.15);
 }
 
-/* Total */
 .total {
   font-weight: bold;
   margin: 1rem 0;
   text-align: center;
 }
 
-/* Botones carrito */
 .btn-wsp,
 .btn-mp {
   display: block;
@@ -438,7 +431,6 @@ h2 {
   border: none;
 }
 
-/* ================= BOTÓN INSTAGRAM ================= */
 #btn-instagram {
   display: flex;
   align-items: center;
@@ -461,7 +453,6 @@ h2 {
   box-shadow: 0 6px 16px rgba(0,0,0,.3);
 }
 
-/* ANIMACIONES */
 @keyframes aparecer {
   from { transform: translateY(40px) scale(.95); opacity: 0; }
   to   { transform: translateY(0) scale(1); opacity: 1; }
@@ -470,4 +461,38 @@ h2 {
 @keyframes modalEntrada {
   from { transform: translateY(30px) scale(.95); opacity: 0; }
   to   { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+/* =========================
+   MEJORAS STOCK/TONOS (NUEVO)
+   - no pisa tu estilo, solo suma
+========================= */
+
+/* Card gris linda cuando no hay stock */
+.producto.sin-stock{
+  opacity: 0.55;
+  filter: grayscale(1);
+}
+
+/* TONOS: badge con stock */
+.tono{
+  position: relative; /* necesario para el badge */
+}
+
+.tono .stock-mini{
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  font-size: 12px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: #ffffff;
+  border: 1px solid rgba(0,0,0,0.15);
+  line-height: 1;
+}
+
+/* Si se acaba el tono */
+.tono.is-out{
+  opacity: 0.45;
+  filter: grayscale(1);
 }
