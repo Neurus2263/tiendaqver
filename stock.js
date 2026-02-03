@@ -456,22 +456,31 @@ document.addEventListener('DOMContentLoaded', () => {
     btn.textContent = '...';
     btn.disabled = true;
 
-    try {
-      // Reservo 1 unidad (temporal)
-      const nuevoStockVisible = await reservarProducto(nombre, 1);
+   try {
+  // Reservo 1 unidad (temporal en backend)
+  await reservarProducto(nombre, 1);
 
-      if (nuevoStockVisible < 0) {
-        setStatus('warn', 'No hay stock disponible.');
-        return;
-      }
+  // 🔽 Descuento SOLO visual (frontend)
+  const stockActual = Number(card.dataset.stock || 0);
+  const nuevoStockVisible = Math.max(0, stockActual - 1);
+  card.dataset.stock = String(nuevoStockVisible);
 
-      // Agrego al carrito
-      agregarOIncrementar(
-        `prod:${normalizar(nombre)}`,
-        nombre,
-        precio,
-        { tipo: 'producto', nombre_base: nombre }
-      );
+  const stockEl = card.querySelector('.stock');
+  if (stockEl) stockEl.textContent = nuevoStockVisible;
+
+  if (nuevoStockVisible <= 0) {
+    btn.disabled = true;
+    btn.textContent = 'Sin stock';
+    card.classList.add('sin-stock');
+  }
+
+  // ✅ Agrego al carrito
+  agregarOIncrementar(
+    `prod:${normalizar(nombre)}`,
+    nombre,
+    precio,
+    { tipo: 'producto', nombre_base: nombre }
+  );
 
       // Actualizo stock visible en card
       card.dataset.stock = String(nuevoStockVisible);
