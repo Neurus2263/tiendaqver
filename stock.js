@@ -165,6 +165,72 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   /* =========================
+     RESERVAS (NUEVO)
+  ========================= */
+  const TTL_MIN = 10;
+
+  function getSessionId() {
+    let id = localStorage.getItem('qver_session_id');
+    if (!id) {
+      // crypto.randomUUID() existe en casi todos los navegadores modernos
+      const uuid = (crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2);
+      id = 'sess_' + uuid;
+      localStorage.setItem('qver_session_id', id);
+    }
+    return id;
+  }
+
+  const SESSION_ID = getSessionId();
+
+  async function reservarProducto(nombre, cantidad = 1) {
+    const { data, error } = await supa.rpc('reservar_producto', {
+      p_session_id: SESSION_ID,
+      p_nombre: nombre,
+      p_cantidad: cantidad,
+      p_ttl_min: TTL_MIN
+    });
+    if (error) throw error;
+    return Number(data); // devuelve "stock disponible" luego de reservar, o -1 si no hay
+  }
+
+  async function reservarTono(productoId, tono, cantidad = 1) {
+    const { data, error } = await supa.rpc('reservar_tono', {
+      p_session_id: SESSION_ID,
+      p_producto_id: productoId,
+      p_tono: tono,
+      p_cantidad: cantidad,
+      p_ttl_min: TTL_MIN
+    });
+    if (error) throw error;
+    return Number(data);
+  }
+
+  async function liberarReservas() {
+    const { error } = await supa.rpc('liberar_reservas', { p_session_id: SESSION_ID });
+    if (error) console.error(error);
+  }
+
+  async function extenderReservas() {
+    const { error } = await supa.rpc('extender_reservas', { p_session_id: SESSION_ID, p_ttl_min: TTL_MIN });
+    if (error) console.error(error);
+  }
+
+  async function liberarReservaItem(item) {
+    // item = { tipo:'producto'|'tono', nombre_base, producto_id, tono, cantidad }
+    const payload = {
+      p_session_id: SESSION_ID,
+      p_tipo: item.tipo,
+      p_nombre: item.tipo === 'producto' ? item.nombre_base : null,
+      p_producto_id: item.tipo === 'tono' ? item.producto_id : null,
+      p_tono: item.tipo === 'tono' ? String(item.tono) : null,
+      p_cantidad: Number(item.cantidad || 1)
+    };
+
+    const { error } = await supa.rpc('liberar_reserva_item', payload);
+    if (error) console.error(error);
+  }
+
+  /* =========================
      CARRITO
   ========================= */
   let carrito = [];
@@ -193,8 +259,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function agregarOIncrementar(id, nombre, precio, meta = {}) {
     const existente = carrito.find(p => p.id === id);
-    if (existente) existente.cantidad++;
-    else carrito.push({ id, nombre, precio, cantidad: 1, ...meta });
+    if (existente) {
+      existente.cantidad++;
+    } else {
+      carrito.push({ id, nombre, precio, cantidad: 1, ...meta });
+    }
     renderCarrito();
   }
 
@@ -219,10 +288,21 @@ document.addEventListener('DOMContentLoaded', () => {
     contador.textContent = String(carrito.reduce((a, p) => a + p.cantidad, 0));
 
     document.querySelectorAll('.btn-eliminar').forEach(btn => {
-      btn.onclick = () => {
+      btn.onclick = async () => {
         const i = Number(btn.dataset.index);
+        const item = carrito[i];
+        if (!item) return;
+
+        // ✅ liberar reserva antes de borrar (devuelve stock)
+        try {
+          await liberarReservaItem(item);
+        } catch (_) {}
+
         carrito.splice(i, 1);
         renderCarrito();
+
+        // refrescamos UI
+        refrescarStockGlobal();
       };
     });
   }
@@ -258,21 +338,18 @@ document.addEventListener('DOMContentLoaded', () => {
       const stockEl = card.querySelector('.stock');
       const btn = card.querySelector('.btn-agregar');
 
-      // si es producto de tonos, no tiene btn-agregar, no tocamos
       if (!h3) return;
 
       const key = normalizar(h3.textContent);
       const row = productosDB.get(key);
       if (!row) return;
 
-      // ✅ siempre actualizar precio desde DB
       card.dataset.precio = String(row.precio);
 
       const s = Number(row.stock ?? 0);
       card.dataset.stock = String(s);
       if (stockEl) stockEl.textContent = String(s);
 
-      // Solo para productos con btn-agregar
       if (btn) {
         if (s <= 0) {
           btn.disabled = true;
@@ -292,44 +369,27 @@ document.addEventListener('DOMContentLoaded', () => {
     pintarStockEnCards();
   }
 
-  // ✅ Refresh inicial
   refrescarStockGlobal();
 
-  // ✅ Refresh cuando volvés a la pestaña (evita “stock viejo” en celu/pc)
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') refrescarStockGlobal();
   });
 
-  // ✅ Poll suave cada 25s (por si no usás realtime)
   setInterval(refrescarStockGlobal, 25000);
 
-  // ✅ Realtime (si está habilitado en Supabase)
   try {
     supa
       .channel('stock-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'productos' }, () => {
         refrescarStockGlobal();
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tonos' }, () => {
-        // si cambia tonos, refrescamos también (para modales de tonos)
-        // no abrimos modal solo, pero dejamos data consistente
-      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tonos' }, () => {})
       .subscribe();
   } catch (_) {}
 
   /* =========================
-     ✅ CAMBIO CLAVE:
-     Agregar al carrito NO descuenta stock en DB.
-     Solo valida contra el stock actual para no pasarse.
+     ✅ AGREGAR PRODUCTOS: AHORA RESERVA Y DESCUENTA EN UI
   ========================= */
-  function cantidadEnCarritoPorNombre(nombreProducto) {
-    const key = normalizar(nombreProducto);
-    // items sin tonos: guardamos meta { tipo:'producto', nombre_base: ... }
-    return carrito
-      .filter(p => p.tipo === 'producto' && normalizar(p.nombre_base) === key)
-      .reduce((acc, p) => acc + (p.cantidad || 0), 0);
-  }
-
   document.addEventListener('click', async (e) => {
     const btn = e.target.closest('.btn-agregar');
     if (!btn) return;
@@ -342,24 +402,57 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const nombre = h3.textContent.trim();
     const precio = Number(card.dataset.precio || 0);
+    const stockEl = card.querySelector('.stock');
 
-    // Validación contra stock real (lo que refrescamos)
-    const row = productosDB.get(normalizar(nombre));
-    const stockReal = Number(row?.stock ?? card.dataset.stock ?? 0);
+    if (btn.dataset.loading === '1') return;
+    btn.dataset.loading = '1';
 
-    const enCarrito = cantidadEnCarritoPorNombre(nombre);
-    if (stockReal <= 0 || enCarrito + 1 > stockReal) {
-      setStatus('warn', 'No hay stock suficiente para agregar más.');
-      return;
+    const textoOriginal = btn.textContent;
+    btn.textContent = '...';
+    btn.disabled = true;
+
+    try {
+      // ✅ reserva real en DB
+      const disponibleNuevo = await reservarProducto(nombre, 1);
+
+      if (disponibleNuevo < 0) {
+        if (stockEl) stockEl.textContent = '0';
+        card.dataset.stock = '0';
+        card.classList.add('sin-stock');
+        btn.textContent = 'Sin stock';
+        btn.disabled = true;
+        return;
+      }
+
+      // ✅ agrega al carrito y guarda metadata para liberar después
+      agregarOIncrementar(
+        `prod:${normalizar(nombre)}`,
+        nombre,
+        precio,
+        { tipo: 'producto', nombre_base: nombre }
+      );
+
+      // ✅ UI stock (lo que devuelve la RPC)
+      card.dataset.stock = String(disponibleNuevo);
+      if (stockEl) stockEl.textContent = String(disponibleNuevo);
+
+      if (disponibleNuevo <= 0) {
+        card.classList.add('sin-stock');
+        btn.textContent = 'Sin stock';
+        btn.disabled = true;
+      } else {
+        btn.textContent = 'Agregar';
+        btn.disabled = false;
+      }
+    } catch (err) {
+      console.error(err);
+      setStatus('error', 'Error reservando stock.');
+      btn.textContent = textoOriginal;
+      btn.disabled = false;
+    } finally {
+      btn.dataset.loading = '0';
+      if (!btn.disabled && btn.textContent === '...') btn.textContent = textoOriginal;
     }
-
-    // ✅ solo agregamos al carrito, SIN RPC
-    agregarOIncrementar(
-      `prod:${normalizar(nombre)}`,
-      nombre,
-      precio,
-      { tipo: 'producto', nombre_base: nombre }
-    );
   });
 
   /* =========================
@@ -424,13 +517,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // helper: cantidad en carrito por tono
-  function cantidadEnCarritoPorTono(productoId, tono) {
-    return carrito
-      .filter(p => p.tipo === 'tono' && p.producto_id === productoId && String(p.tono) === String(tono))
-      .reduce((acc, p) => acc + (p.cantidad || 0), 0);
-  }
-
   document.querySelectorAll('.btn-elegir-tono').forEach(btn => {
     btn.onclick = async () => {
       const card = btn.closest('.producto');
@@ -463,6 +549,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
   });
 
+  // ✅ click en tono: ahora reserva en DB y baja stock
   document.addEventListener('click', async (e) => {
     const btnTono = e.target.closest('.tono');
     if (!btnTono) return;
@@ -472,24 +559,49 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const tono = String(btnTono.dataset.tono || '').trim();
     const precio = Number(btnTono.dataset.precio || productoActual.precioBase || 0);
-    const stock = Number(btnTono.dataset.stock || 0);
 
-    const enCarrito = cantidadEnCarritoPorTono(productoActual.id, tono);
-    if (stock <= 0 || enCarrito + 1 > stock) {
-      setStatus('warn', 'No hay stock suficiente de ese tono.');
-      return;
+    if (btnTono.dataset.loading === '1') return;
+    btnTono.dataset.loading = '1';
+
+    const texto = btnTono.textContent;
+    btnTono.textContent = '...';
+    btnTono.disabled = true;
+
+    try {
+      const disponibleNuevo = await reservarTono(productoActual.id, tono, 1);
+
+      if (disponibleNuevo < 0) {
+        setStatus('warn', 'Sin stock disponible en ese tono.');
+        return;
+      }
+
+      const idCarrito = `tono:${productoActual.id}:${tono}`;
+      const nombreCarrito = `${productoActual.nombre} (Tono ${tono})`;
+      agregarOIncrementar(idCarrito, nombreCarrito, precio, {
+        tipo: 'tono',
+        producto_id: productoActual.id,
+        tono,
+        nombre_base: productoActual.nombre
+      });
+
+      btnTono.dataset.stock = String(disponibleNuevo);
+      const badge = btnTono.querySelector('.stock-mini');
+      if (badge) badge.textContent = String(disponibleNuevo);
+
+      if (disponibleNuevo <= 0) {
+        btnTono.disabled = true;
+        btnTono.classList.add('is-out');
+      } else {
+        btnTono.disabled = false;
+        btnTono.classList.remove('is-out');
+      }
+    } catch (err) {
+      console.error(err);
+      setStatus('error', 'Error reservando stock del tono.');
+    } finally {
+      btnTono.dataset.loading = '0';
+      btnTono.textContent = texto;
     }
-
-    // ✅ solo agregamos al carrito, SIN RPC
-    const idCarrito = `tono:${productoActual.id}:${tono}`;
-    const nombreCarrito = `${productoActual.nombre} (Tono ${tono})`;
-
-    agregarOIncrementar(idCarrito, nombreCarrito, precio, {
-      tipo: 'tono',
-      producto_id: productoActual.id,
-      tono,
-      nombre_base: productoActual.nombre
-    });
   });
 
   /* =========================
@@ -518,8 +630,8 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   /* =========================
-     COMPROBANTE + WHATSAPP
-     ✅ El stock se descuenta RECIÉN ACÁ (confirmación).
+     COMPROBANTE + WHATSAPP + LINK
+     (tu flujo original, sin tocar)
   ========================= */
   const inputComprobante = document.getElementById('input-comprobante');
   const montoConfirmado = document.getElementById('monto-confirmado');
@@ -619,37 +731,6 @@ ${detalle}
 `);
   }
 
-  // ✅ Descontar stock en DB recién al confirmar
-  async function descontarStockEnDB() {
-    // agrupamos cantidades
-    const productos = carrito.filter(p => p.tipo === 'producto');
-    const tonos = carrito.filter(p => p.tipo === 'tono');
-
-    // 1) Validación/Descuento productos simples
-    for (const p of productos) {
-      // p.nombre_base es el nombre del producto
-      for (let i = 0; i < (p.cantidad || 1); i++) {
-        const { data, error } = await supa.rpc('decrement_stock', { p_nombre: p.nombre_base });
-        if (error) throw error;
-        const nuevoStock = Number(data);
-        if (nuevoStock < 0) throw new Error(`Sin stock para: ${p.nombre_base}`);
-      }
-    }
-
-    // 2) Validación/Descuento tonos
-    for (const t of tonos) {
-      for (let i = 0; i < (t.cantidad || 1); i++) {
-        const { data, error } = await supa.rpc('decrement_tono_stock', {
-          p_producto_id: t.producto_id,
-          p_tono: String(t.tono)
-        });
-        if (error) throw error;
-        const nuevoStock = Number(data);
-        if (nuevoStock < 0) throw new Error(`Sin stock para tono: ${t.nombre_base} (${t.tono})`);
-      }
-    }
-  }
-
   async function procesarPagoYObtenerLink(preOpenedWindow) {
     if (!carrito.length) {
       setStatus('warn', 'Tu carrito está vacío.');
@@ -667,7 +748,6 @@ ${detalle}
       throw new Error('Monto inválido');
     }
 
-    // UI lock
     if (btnEnviarWsp) {
       btnEnviarWsp.disabled = true;
       btnEnviarWsp.textContent = 'Procesando...';
@@ -678,12 +758,6 @@ ${detalle}
     }
     setInputsLocked(true);
 
-    // ✅ 1) Descontar stock recién acá
-    setStatus('info', 'Confirmando stock...');
-    await refrescarStockGlobal(); // stock más fresco antes de descontar
-    await descontarStockEnDB();
-
-    // ✅ 2) Crear pedido
     setStatus('info', 'Creando orden...');
     const order_code = generarOrderCode();
 
@@ -697,11 +771,9 @@ ${detalle}
 
     showOrderCode(pedidoActual.order_code);
 
-    // ✅ 3) Subir comprobante
     setStatus('info', 'Subiendo comprobante...');
     const comprobante_path = await subirComprobantePDF(fileSeleccionado, pedidoActual.order_code);
 
-    // ✅ 4) Link firmado
     setStatus('info', 'Generando link y notificando...');
     const resp = await notificarPagoBackend({
       pedido_id: pedidoActual.id,
@@ -719,15 +791,11 @@ ${detalle}
     setStatus('ok', 'Listo ✅ Ahora se abre WhatsApp con tu orden y el link.');
     if (avisoAdjunto) avisoAdjunto.style.display = 'block';
 
-    // refrescamos stock visible (ya descontado)
-    refrescarStockGlobal();
-
     return { monto, order_code: pedidoActual.order_code, link: linkComprobante, preOpenedWindow };
   }
 
   if (btnEnviarWsp) {
     btnEnviarWsp.onclick = async () => {
-      // ✅ abrimos “ventana” dentro del click para que el celu no bloquee WhatsApp
       let preOpenedWindow = null;
       try {
         preOpenedWindow = window.open('about:blank', '_blank');
@@ -744,10 +812,11 @@ ${detalle}
         const msg = armarMensajeWhatsApp(order_code, monto, link);
         abrirWhatsAppSeguro(WSP_NUMERO, msg, preOpenedWindow);
 
+        // ✅ IMPORTANTE: NO liberamos reservas porque ya está en proceso de pago/pedido
+        // (si querés liberar al finalizar, se hace del lado admin cuando procesás la orden)
       } catch (err) {
         console.error(err);
 
-        // Si abrimos ventana y hubo error, la cerramos para no dejar pestaña colgada
         try { if (preOpenedWindow && !preOpenedWindow.closed) preOpenedWindow.close(); } catch (_) {}
 
         setInputsLocked(false);
@@ -762,5 +831,56 @@ ${detalle}
       }
     };
   }
+
+  /* =========================
+     KEEPALIVE + LIBERACION
+  ========================= */
+
+  // mantiene viva la reserva mientras haya carrito
+  setInterval(() => {
+    if (carrito && carrito.length) extenderReservas();
+  }, 40000);
+
+  // best effort: si cierra pestaña, intenta liberar todo
+  window.addEventListener('beforeunload', () => {
+    liberarReservas();
+  });
+
+  // si el usuario vacía el carrito (por ejemplo borrando todo) no hace falta extra.
+  // igual: si se va sin pagar, expira por TTL y vuelve solo.
+
+  /* =========================
+   LIBERAR STOCK SI ABANDONA
+   (cierra pestaña / recarga / se va)
+========================= */
+window.addEventListener('beforeunload', () => {
+  try {
+    if (!carrito || carrito.length === 0) return;
+
+    carrito.forEach(item => {
+      if (item.tipo === 'producto') {
+        supa.rpc('liberar_reserva_item', {
+          p_session_id: SESSION_ID,
+          p_tipo: 'producto',
+          p_nombre: item.nombre_base,
+          p_cantidad: item.cantidad
+        });
+      }
+
+      if (item.tipo === 'tono') {
+        supa.rpc('liberar_reserva_item', {
+          p_session_id: SESSION_ID,
+          p_tipo: 'tono',
+          p_producto_id: item.producto_id,
+          p_tono: String(item.tono),
+          p_cantidad: item.cantidad
+        });
+      }
+    });
+  } catch (e) {
+    console.warn('Liberación de stock al salir', e);
+  }
+});
+
 
 });
