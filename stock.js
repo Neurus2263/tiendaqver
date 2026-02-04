@@ -212,9 +212,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const i = Number(btn.dataset.index);
         const item = carrito[i];
 
-        // ✅ Al eliminar del carrito, devolvemos stock visual local (NO DB)
-        if (item?.kind === 'producto') liberarStockVisualProducto(item.keyProductoNorm, 1);
-        if (item?.kind === 'tono') liberarStockVisualTono(item.producto_id, item.tono, 1);
+        // ✅ devolver TODA la cantidad del item
+        const cant = Number(item?.cantidad || 1);
+
+        // ✅ devolver stock visual local (NO DB)
+        if (item?.kind === 'producto') liberarStockVisualProducto(item.keyProductoNorm, cant);
+        if (item?.kind === 'tono') liberarStockVisualTono(item.producto_id, item.tono, cant);
 
         carrito.splice(i, 1);
         renderCarrito();
@@ -231,17 +234,12 @@ document.addEventListener('DOMContentLoaded', () => {
   ========================= */
   let productosDB = new Map();
 
-  // ✅ Ajuste local (reservas visuales) para que el UI no mienta
-  // key: nombre_normalizado -> reservado (int)
   const reservasProductos = new Map();
-
-  function getReservadoProducto(keyNorm) {
-    return Number(reservasProductos.get(keyNorm) || 0);
-  }
+  function getReservadoProducto(keyNorm) { return Number(reservasProductos.get(keyNorm) || 0); }
 
   function reservarStockVisualProducto(keyNorm, cant) {
     reservasProductos.set(keyNorm, getReservadoProducto(keyNorm) + cant);
-    pintarStockEnCards(); // repinta con stock - reservado
+    pintarStockEnCards();
   }
 
   function liberarStockVisualProducto(keyNorm, cant) {
@@ -249,20 +247,12 @@ document.addEventListener('DOMContentLoaded', () => {
     pintarStockEnCards();
   }
 
-  // Para tonos, guardamos reservas por producto_id:tono
-  const reservasTonos = new Map(); // key `${producto_id}:${tono}` -> reservado
-
-  function keyTono(pid, tono) {
-    return `${pid}:${tono}`;
-  }
-
-  function getReservadoTono(pid, tono) {
-    return Number(reservasTonos.get(keyTono(pid, tono)) || 0);
-  }
+  const reservasTonos = new Map();
+  function keyTono(pid, tono) { return `${pid}:${tono}`; }
+  function getReservadoTono(pid, tono) { return Number(reservasTonos.get(keyTono(pid, tono)) || 0); }
 
   function reservarStockVisualTono(pid, tono, cant) {
     reservasTonos.set(keyTono(pid, tono), getReservadoTono(pid, tono) + cant);
-    // si el modal está abierto, lo actualizamos “en vivo”
     if (productoActual?.id === pid) {
       const modalAbierto = document.querySelector('.modal-tonos[style*="display: flex"]');
       if (modalAbierto) recargarYRepintarTonos(modalAbierto, pid);
@@ -288,9 +278,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     productosDB.clear();
-    (data || []).forEach(row => {
-      productosDB.set(normalizar(row.nombre), row);
-    });
+    (data || []).forEach(row => productosDB.set(normalizar(row.nombre), row));
   }
 
   function pintarStockEnCards() {
@@ -334,9 +322,7 @@ document.addEventListener('DOMContentLoaded', () => {
   refrescarStockGlobal();
 
   /* =========================
-     ✅ CAMBIO CLAVE #1
-     "Agregar" ya NO descuenta stock en DB.
-     Solo agrega al carrito + reserva visual.
+     "Agregar" NO descuenta stock en DB.
   ========================= */
   document.addEventListener('click', async (e) => {
     const btn = e.target.closest('.btn-agregar');
@@ -356,24 +342,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const precio = Number(row.precio || card.dataset.precio || 0);
 
-    // stock visible (real - reservado)
     const stockDisponible = Number(card.dataset.stock || 0);
     if (stockDisponible <= 0) {
       setStatus('warn', 'Sin stock.');
       return;
     }
 
-    // ✅ agregamos al carrito SIN tocar DB
     agregarOIncrementar({
-      id: `prod:${row.id}`,         // id estable
+      id: `prod:${row.id}`,
       kind: 'producto',
       nombre,
+      nombreDB: row.nombre,          // ✅ nombre exacto de DB
       precio,
       keyProductoNorm: keyNorm,
       producto_id: row.id
     });
 
-    // ✅ reservar visualmente 1 unidad
     reservarStockVisualProducto(keyNorm, 1);
   });
 
@@ -480,9 +464,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   /* =========================
-     ✅ CAMBIO CLAVE #2
-     Elegir un tono ya NO descuenta stock en DB.
-     Solo agrega al carrito + reserva visual del tono.
+     Elegir tono NO descuenta en DB
   ========================= */
   document.addEventListener('click', async (e) => {
     const btnTono = e.target.closest('.tono');
@@ -500,7 +482,6 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    // ✅ agregar al carrito sin DB
     const idCarrito = `tono:${productoActual.id}:${tono}`;
     const nombreCarrito = `${productoActual.nombre} (Tono ${tono})`;
 
@@ -513,7 +494,6 @@ document.addEventListener('DOMContentLoaded', () => {
       tono
     });
 
-    // ✅ reservar visual del tono
     reservarStockVisualTono(productoActual.id, tono, 1);
   });
 
@@ -544,7 +524,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   /* =========================
      COMPROBANTE + WHATSAPP + EMAIL
-     ✅ CAMBIO CLAVE #3: DESCONTAR STOCK REAL ACÁ
   ========================= */
   const inputComprobante = document.getElementById('input-comprobante');
   const montoConfirmado = document.getElementById('monto-confirmado');
@@ -644,9 +623,8 @@ ${detalle}
 `);
   }
 
-  // ✅ DESCUENTA STOCK REAL EN SUPABASE (recién al confirmar)
+  // ✅ Descuenta stock REAL recién al confirmar
   async function confirmarCompraYDescontarStock() {
-    // 1) Armamos lista “expandida” por cantidad
     const acciones = [];
     for (const item of carrito) {
       for (let k = 0; k < (item.cantidad || 0); k++) {
@@ -654,11 +632,8 @@ ${detalle}
       }
     }
 
-    // 2) Primero revalidamos stock contra DB (evita descontar a medias)
-    //    Productos sin tonos: por producto_id
-    //    Tonos: por producto_id+tono
-    const prods = new Map();   // producto_id -> total
-    const tonos = new Map();   // `${pid}:${tono}` -> total
+    const prods = new Map();
+    const tonos = new Map();
 
     carrito.forEach(it => {
       if (it.kind === 'producto') {
@@ -669,7 +644,6 @@ ${detalle}
       }
     });
 
-    // validar productos
     if (prods.size) {
       const ids = Array.from(prods.keys());
       const { data, error } = await supa.from('productos').select('id, stock').in('id', ids);
@@ -684,9 +658,7 @@ ${detalle}
       }
     }
 
-    // validar tonos
     if (tonos.size) {
-      // consultamos por producto_id y traemos tonos de esos productos
       const pids = Array.from(new Set(Array.from(tonos.keys()).map(x => x.split(':')[0])));
       const { data, error } = await supa.from('tonos').select('producto_id, tono, stock').in('producto_id', pids);
       if (error) throw error;
@@ -702,13 +674,9 @@ ${detalle}
       }
     }
 
-    // 3) Si pasa validación, recién ahí descontamos de verdad
-    //    Productos sin tonos: usamos tu RPC decrement_stock por nombre
-    //    Tonos: usamos tu RPC decrement_tono_stock
     for (const it of acciones) {
       if (it.kind === 'producto') {
-        // Tu RPC espera nombre (p_nombre). Usamos el nombre del h3 (it.nombre base).
-        const nombreBase = it.nombre.replace(/\s+x\d+.*$/i, '').trim();
+        const nombreBase = (it.nombreDB || it.nombre).trim();
         const { data, error } = await supa.rpc('decrement_stock', { p_nombre: nombreBase });
         if (error) throw error;
         if (Number(data) < 0) throw new Error('Sin stock (producto) al confirmar.');
@@ -740,7 +708,6 @@ ${detalle}
       throw new Error('Monto inválido');
     }
 
-    // UI lock
     if (btnEnviarWsp) {
       btnEnviarWsp.disabled = true;
       btnEnviarWsp.textContent = 'Procesando...';
@@ -751,11 +718,9 @@ ${detalle}
     }
     setInputsLocked(true);
 
-    // ✅ 1) DESCONTAR STOCK REAL AHORA (no antes)
     setStatus('info', 'Confirmando stock...');
     await confirmarCompraYDescontarStock();
 
-    // ✅ 2) crear pedido + subir PDF + notificar (como ya lo tenías)
     setStatus('info', 'Creando orden...');
     const order_code = generarOrderCode();
 
@@ -802,12 +767,13 @@ ${detalle}
           'Comprobante subido correctamente ✅ Ahora se abrirá WhatsApp. Adjuntá el PDF desde el clip 📎'
         );
 
+        // ✅ FIX WhatsApp: armar mensaje antes de vaciar carrito
+        const msg = armarMensajeWhatsApp(order_code, monto, link);
+
         setTimeout(() => {
-          const msg = armarMensajeWhatsApp(order_code, monto, link);
           abrirWhatsApp(WSP_NUMERO, msg);
         }, 1200);
 
-        // ✅ Limpieza local: carrito y reservas visuales
         carrito = [];
         reservasProductos.clear();
         reservasTonos.clear();
@@ -829,7 +795,6 @@ ${detalle}
           btnPague.textContent = 'Ya realicé el pago';
         }
 
-        // si falló, resync stock real para no “mentir” visualmente
         await refrescarStockGlobal();
       }
     };
