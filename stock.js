@@ -7,9 +7,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const SUPABASE_URL = "https://dsspsxiactuskjmodety.supabase.co";
   const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRzc3BzeGlhY3R1c2tqbW9kZXR5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk5OTEyMTAsImV4cCI6MjA4NTU2NzIxMH0.OGaX04gxjDvM7O6HPOIeEQZlhErGSp58lYminEfPm_Y";
 
-  // Reservas
-  const TTL_MIN = 10;
-
   /* =========================
      HELPERS (UI)
   ========================= */
@@ -109,20 +106,9 @@ document.addEventListener('DOMContentLoaded', () => {
     return `QVER-${y}${m}${day}-${rand}`;
   }
 
-  function buildWhatsAppUrl(phoneE164, mensaje) {
+  function abrirWhatsApp(phoneE164, mensaje) {
     const text = encodeURIComponent(mensaje);
-    return `https://api.whatsapp.com/send?phone=${phoneE164}&text=${text}`;
-  }
-
-  // ✅ FIX móvil: abrimos ventana dentro del click (gesto), y después la redirigimos
-  function abrirWhatsAppSeguro(phoneE164, mensaje, preOpenedWindow) {
-    const url = buildWhatsAppUrl(phoneE164, mensaje);
-    try {
-      if (preOpenedWindow && !preOpenedWindow.closed) {
-        preOpenedWindow.location.href = url;
-        return;
-      }
-    } catch (_) {}
+    const url = `https://api.whatsapp.com/send?phone=${phoneE164}&text=${text}`;
     window.location.href = url;
   }
 
@@ -149,7 +135,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   /* =========================
-     SUPABASE INIT
+     INICIALIZAR SUPABASE
   ========================= */
   let supa = null;
 
@@ -165,73 +151,6 @@ document.addEventListener('DOMContentLoaded', () => {
     console.error(err);
     setStatus('error', 'No pude inicializar Supabase.');
     return;
-  }
-
-  /* =========================
-     SESIÓN RESERVAS
-  ========================= */
-  function getSessionId() {
-    let id = localStorage.getItem('qver_session_id');
-    if (!id) {
-      id = 'sess_' + crypto.randomUUID();
-      localStorage.setItem('qver_session_id', id);
-    }
-    return id;
-  }
-  const SESSION_ID = getSessionId();
-
-  async function reservarProducto(nombre, cantidad = 1) {
-    const { data, error } = await supa.rpc('reservar_producto', {
-      p_session_id: SESSION_ID,
-      p_nombre: nombre,
-      p_cantidad: cantidad,
-      p_ttl_min: TTL_MIN
-    });
-    if (error) throw error;
-    return Number(data);
-  }
-
-  async function reservarTono(productoId, tono, cantidad = 1) {
-    const { data, error } = await supa.rpc('reservar_tono', {
-      p_session_id: SESSION_ID,
-      p_producto_id: productoId,
-      p_tono: tono,
-      p_cantidad: cantidad,
-      p_ttl_min: TTL_MIN
-    });
-    if (error) throw error;
-    return Number(data);
-  }
-
-  async function liberarReservas() {
-    const { error } = await supa.rpc('liberar_reservas', { p_session_id: SESSION_ID });
-    if (error) console.error(error);
-  }
-
-  async function extenderReservas() {
-    const { error } = await supa.rpc('extender_reservas', { p_session_id: SESSION_ID, p_ttl_min: TTL_MIN });
-    if (error) console.error(error);
-  }
-
-  async function liberarReservaItemProducto(nombre, cantidad) {
-    const { error } = await supa.rpc('liberar_reserva_item', {
-      p_session_id: SESSION_ID,
-      p_tipo: 'producto',
-      p_nombre: nombre,
-      p_cantidad: cantidad
-    });
-    if (error) throw error;
-  }
-
-  async function liberarReservaItemTono(productoId, tono, cantidad) {
-    const { error } = await supa.rpc('liberar_reserva_item', {
-      p_session_id: SESSION_ID,
-      p_tipo: 'tono',
-      p_producto_id: productoId,
-      p_tono: String(tono),
-      p_cantidad: cantidad
-    });
-    if (error) throw error;
   }
 
   /* =========================
@@ -261,37 +180,11 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  function agregarOIncrementar(id, nombre, precio, meta = {}) {
-    const existente = carrito.find(p => p.id === id);
+  function agregarOIncrementar(item) {
+    const existente = carrito.find(p => p.id === item.id);
     if (existente) existente.cantidad++;
-    else carrito.push({ id, nombre, precio, cantidad: 1, ...meta });
+    else carrito.push({ ...item, cantidad: 1 });
     renderCarrito();
-  }
-
-  function totalCarritoActual() {
-    return carrito.reduce((acc, p) => acc + (p.precio * p.cantidad), 0);
-  }
-
-  function reservadoLocalProducto(nombre) {
-    const key = normalizar(nombre);
-    return carrito
-      .filter(p => p.tipo === 'producto' && normalizar(p.nombre_base) === key)
-      .reduce((acc, p) => acc + (p.cantidad || 0), 0);
-  }
-
-  function reservadoLocalTono(productoId, tono) {
-    return carrito
-      .filter(p => p.tipo === 'tono' && p.producto_id === productoId && String(p.tono) === String(tono))
-      .reduce((acc, p) => acc + (p.cantidad || 0), 0);
-  }
-
-  async function liberarTodoSiCarritoVacio() {
-    if (carrito.length === 0) {
-      try {
-        await liberarReservas();
-        await refrescarStockGlobal();
-      } catch (_) {}
-    }
   }
 
   function renderCarrito() {
@@ -315,39 +208,74 @@ document.addEventListener('DOMContentLoaded', () => {
     contador.textContent = String(carrito.reduce((a, p) => a + p.cantidad, 0));
 
     document.querySelectorAll('.btn-eliminar').forEach(btn => {
-      btn.onclick = async () => {
+      btn.onclick = () => {
         const i = Number(btn.dataset.index);
         const item = carrito[i];
-        if (!item) return;
 
-        // Saco del carrito
+        // ✅ Al eliminar del carrito, devolvemos stock visual local (NO DB)
+        if (item?.kind === 'producto') liberarStockVisualProducto(item.keyProductoNorm, 1);
+        if (item?.kind === 'tono') liberarStockVisualTono(item.producto_id, item.tono, 1);
+
         carrito.splice(i, 1);
         renderCarrito();
-
-        // Libero reserva de ESE ITEM
-        try {
-          if (item.tipo === 'producto') {
-            await liberarReservaItemProducto(item.nombre_base, item.cantidad || 1);
-          } else if (item.tipo === 'tono') {
-            await liberarReservaItemTono(item.producto_id, item.tono, item.cantidad || 1);
-          }
-        } catch (err) {
-          console.error(err);
-        }
-
-        // Refresco stock (sube el numerito)
-        try {
-          await refrescarStockGlobal();
-          await liberarTodoSiCarritoVacio();
-        } catch (_) {}
       };
     });
+  }
+
+  function totalCarritoActual() {
+    return carrito.reduce((acc, p) => acc + (p.precio * p.cantidad), 0);
   }
 
   /* =========================
      STOCK GLOBAL (SUPABASE)
   ========================= */
-  let productosDB = new Map(); // key(normalizado nombre) -> row
+  let productosDB = new Map();
+
+  // ✅ Ajuste local (reservas visuales) para que el UI no mienta
+  // key: nombre_normalizado -> reservado (int)
+  const reservasProductos = new Map();
+
+  function getReservadoProducto(keyNorm) {
+    return Number(reservasProductos.get(keyNorm) || 0);
+  }
+
+  function reservarStockVisualProducto(keyNorm, cant) {
+    reservasProductos.set(keyNorm, getReservadoProducto(keyNorm) + cant);
+    pintarStockEnCards(); // repinta con stock - reservado
+  }
+
+  function liberarStockVisualProducto(keyNorm, cant) {
+    reservasProductos.set(keyNorm, Math.max(0, getReservadoProducto(keyNorm) - cant));
+    pintarStockEnCards();
+  }
+
+  // Para tonos, guardamos reservas por producto_id:tono
+  const reservasTonos = new Map(); // key `${producto_id}:${tono}` -> reservado
+
+  function keyTono(pid, tono) {
+    return `${pid}:${tono}`;
+  }
+
+  function getReservadoTono(pid, tono) {
+    return Number(reservasTonos.get(keyTono(pid, tono)) || 0);
+  }
+
+  function reservarStockVisualTono(pid, tono, cant) {
+    reservasTonos.set(keyTono(pid, tono), getReservadoTono(pid, tono) + cant);
+    // si el modal está abierto, lo actualizamos “en vivo”
+    if (productoActual?.id === pid) {
+      const modalAbierto = document.querySelector('.modal-tonos[style*="display: flex"]');
+      if (modalAbierto) recargarYRepintarTonos(modalAbierto, pid);
+    }
+  }
+
+  function liberarStockVisualTono(pid, tono, cant) {
+    reservasTonos.set(keyTono(pid, tono), Math.max(0, getReservadoTono(pid, tono) - cant));
+    if (productoActual?.id === pid) {
+      const modalAbierto = document.querySelector('.modal-tonos[style*="display: flex"]');
+      if (modalAbierto) recargarYRepintarTonos(modalAbierto, pid);
+    }
+  }
 
   async function cargarProductosDB() {
     const { data, error } = await supa
@@ -371,33 +299,29 @@ document.addEventListener('DOMContentLoaded', () => {
       const stockEl = card.querySelector('.stock');
       const btn = card.querySelector('.btn-agregar');
 
-      if (!h3) return;
+      if (!btn || !h3) return;
 
       const key = normalizar(h3.textContent);
       const row = productosDB.get(key);
       if (!row) return;
 
-      // precio siempre de DB
       card.dataset.precio = String(row.precio);
 
-      // ✅ Stock visible = stock real - reservado local (para que “baje” como antes)
       const stockReal = Number(row.stock ?? 0);
-      const reservado = reservadoLocalProducto(row.nombre);
-      const stockVisible = Math.max(0, stockReal - reservado);
+      const reservado = getReservadoProducto(key);
+      const stockMostrado = Math.max(0, stockReal - reservado);
 
-      card.dataset.stock = String(stockVisible);
-      if (stockEl) stockEl.textContent = String(stockVisible);
+      card.dataset.stock = String(stockMostrado);
+      if (stockEl) stockEl.textContent = String(stockMostrado);
 
-      if (btn) {
-        if (stockVisible <= 0) {
-          btn.disabled = true;
-          btn.textContent = 'Sin stock';
-          card.classList.add('sin-stock');
-        } else {
-          btn.disabled = false;
-          btn.textContent = 'Agregar';
-          card.classList.remove('sin-stock');
-        }
+      if (stockMostrado <= 0) {
+        btn.disabled = true;
+        btn.textContent = 'Sin stock';
+        card.classList.add('sin-stock');
+      } else {
+        btn.disabled = false;
+        btn.textContent = 'Agregar';
+        card.classList.remove('sin-stock');
       }
     });
   }
@@ -407,33 +331,12 @@ document.addEventListener('DOMContentLoaded', () => {
     pintarStockEnCards();
   }
 
-  // Refresh inicial
   refrescarStockGlobal();
 
-  // Refresh cuando volvés a la pestaña
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') refrescarStockGlobal();
-  });
-
-  // Poll suave
-  setInterval(refrescarStockGlobal, 25000);
-
-  // Realtime (si está habilitado)
-  try {
-    supa
-      .channel('stock-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'productos' }, () => {
-        refrescarStockGlobal();
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tonos' }, () => {})
-      .subscribe();
-  } catch (_) {}
-
   /* =========================
-     ✅ AGREGAR PRODUCTO SIMPLE
-     - Reserva en DB
-     - Baja numerito visible
-     - NO descuenta stock real
+     ✅ CAMBIO CLAVE #1
+     "Agregar" ya NO descuenta stock en DB.
+     Solo agrega al carrito + reserva visual.
   ========================= */
   document.addEventListener('click', async (e) => {
     const btn = e.target.closest('.btn-agregar');
@@ -446,66 +349,32 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!h3) return;
 
     const nombre = h3.textContent.trim();
-    const precio = Number(card.dataset.precio || 0);
-    const stockEl = card.querySelector('.stock');
+    const keyNorm = normalizar(nombre);
 
-    if (btn.dataset.loading === '1') return;
-    btn.dataset.loading = '1';
+    const row = productosDB.get(keyNorm);
+    if (!row) return;
 
-    const textoOriginal = btn.textContent;
-    btn.textContent = '...';
-    btn.disabled = true;
+    const precio = Number(row.precio || card.dataset.precio || 0);
 
-   try {
-  // Reservo 1 unidad (temporal en backend)
-  await reservarProducto(nombre, 1);
-
-  // 🔽 Descuento SOLO visual (frontend)
-  const stockActual = Number(card.dataset.stock || 0);
-  const nuevoStockVisible = Math.max(0, stockActual - 1);
-  card.dataset.stock = String(nuevoStockVisible);
-
-  const stockEl = card.querySelector('.stock');
-  if (stockEl) stockEl.textContent = nuevoStockVisible;
-
-  if (nuevoStockVisible <= 0) {
-    btn.disabled = true;
-    btn.textContent = 'Sin stock';
-    card.classList.add('sin-stock');
-  }
-
-  // ✅ Agrego al carrito
-  agregarOIncrementar(
-    `prod:${normalizar(nombre)}`,
-    nombre,
-    precio,
-    { tipo: 'producto', nombre_base: nombre }
-  );
-
-      // Actualizo stock visible en card
-      card.dataset.stock = String(nuevoStockVisible);
-      if (stockEl) stockEl.textContent = String(nuevoStockVisible);
-
-      if (nuevoStockVisible <= 0) {
-        card.classList.add('sin-stock');
-        btn.textContent = 'Sin stock';
-        btn.disabled = true;
-      } else {
-        card.classList.remove('sin-stock');
-        btn.textContent = 'Agregar';
-        btn.disabled = false;
-      }
-
-      // Mantengo viva la reserva
-      extenderReservas();
-    } catch (err) {
-      console.error(err);
-      setStatus('warn', 'No se pudo reservar stock (quizás se agotó).');
-      btn.textContent = textoOriginal;
-      btn.disabled = false;
-    } finally {
-      btn.dataset.loading = '0';
+    // stock visible (real - reservado)
+    const stockDisponible = Number(card.dataset.stock || 0);
+    if (stockDisponible <= 0) {
+      setStatus('warn', 'Sin stock.');
+      return;
     }
+
+    // ✅ agregamos al carrito SIN tocar DB
+    agregarOIncrementar({
+      id: `prod:${row.id}`,         // id estable
+      kind: 'producto',
+      nombre,
+      precio,
+      keyProductoNorm: keyNorm,
+      producto_id: row.id
+    });
+
+    // ✅ reservar visualmente 1 unidad
+    reservarStockVisualProducto(keyNorm, 1);
   });
 
   /* =========================
@@ -525,6 +394,11 @@ document.addEventListener('DOMContentLoaded', () => {
       return [];
     }
     return data || [];
+  }
+
+  async function recargarYRepintarTonos(modal, productoId) {
+    const tonos = await cargarTonosParaProducto(productoId);
+    pintarTonosEnModal(modal, tonos);
   }
 
   function pintarTonosEnModal(modal, tonos) {
@@ -552,23 +426,23 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       const stockReal = Number(row.stock ?? 0);
-      const reservado = productoActual ? reservadoLocalTono(productoActual.id, tono) : 0;
-      const stockVisible = Math.max(0, stockReal - reservado);
+      const reservado = getReservadoTono(productoActual.id, tono);
+      const stockMostrado = Math.max(0, stockReal - reservado);
 
       const p = Number(row.precio ?? (productoActual?.precioBase ?? 0));
 
-      btn.dataset.stock = String(stockVisible);
+      btn.dataset.stock = String(stockMostrado);
       btn.dataset.precio = String(p);
-      badge.textContent = String(stockVisible);
+      badge.textContent = String(stockMostrado);
 
-      if (stockVisible <= 0) {
+      if (stockMostrado <= 0) {
         btn.disabled = true;
         btn.classList.add('is-out');
         btn.title = 'Sin stock';
       } else {
         btn.disabled = false;
         btn.classList.remove('is-out');
-        btn.title = `Stock: ${stockVisible}`;
+        btn.title = `Stock: ${stockMostrado}`;
       }
     });
   }
@@ -605,7 +479,11 @@ document.addEventListener('DOMContentLoaded', () => {
     };
   });
 
-  // ✅ click en tono: reserva + baja badge + agrega al carrito
+  /* =========================
+     ✅ CAMBIO CLAVE #2
+     Elegir un tono ya NO descuenta stock en DB.
+     Solo agrega al carrito + reserva visual del tono.
+  ========================= */
   document.addEventListener('click', async (e) => {
     const btnTono = e.target.closest('.tono');
     if (!btnTono) return;
@@ -615,59 +493,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const tono = String(btnTono.dataset.tono || '').trim();
     const precio = Number(btnTono.dataset.precio || productoActual.precioBase || 0);
-    const stockVisible = Number(btnTono.dataset.stock || 0);
 
-    if (stockVisible <= 0) {
-      setStatus('warn', 'No hay stock suficiente de ese tono.');
+    const stockDisponible = Number(btnTono.dataset.stock || 0);
+    if (stockDisponible <= 0) {
+      setStatus('warn', 'Ese tono está sin stock.');
       return;
     }
 
-    if (btnTono.dataset.loading === '1') return;
-    btnTono.dataset.loading = '1';
+    // ✅ agregar al carrito sin DB
+    const idCarrito = `tono:${productoActual.id}:${tono}`;
+    const nombreCarrito = `${productoActual.nombre} (Tono ${tono})`;
 
-    const texto = btnTono.textContent;
-    btnTono.textContent = '...';
-    btnTono.disabled = true;
+    agregarOIncrementar({
+      id: idCarrito,
+      kind: 'tono',
+      nombre: nombreCarrito,
+      precio,
+      producto_id: productoActual.id,
+      tono
+    });
 
-    try {
-      const nuevoStockVisible = await reservarTono(productoActual.id, tono, 1);
-
-      if (nuevoStockVisible < 0) {
-        setStatus('warn', 'No hay stock disponible de ese tono.');
-        return;
-      }
-
-      const idCarrito = `tono:${productoActual.id}:${tono}`;
-      const nombreCarrito = `${productoActual.nombre} (Tono ${tono})`;
-
-      agregarOIncrementar(idCarrito, nombreCarrito, precio, {
-        tipo: 'tono',
-        producto_id: productoActual.id,
-        tono,
-        nombre_base: productoActual.nombre
-      });
-
-      // Actualizo badge visible
-      btnTono.dataset.stock = String(nuevoStockVisible);
-      const badge = btnTono.querySelector('.stock-mini');
-      if (badge) badge.textContent = String(nuevoStockVisible);
-
-      if (nuevoStockVisible <= 0) {
-        btnTono.disabled = true;
-        btnTono.classList.add('is-out');
-      } else {
-        btnTono.disabled = false;
-        btnTono.classList.remove('is-out');
-      }
-
-      extenderReservas();
-    } catch (err) {
-      console.error(err);
-      setStatus('warn', 'No se pudo reservar ese tono.');
-    } finally {
-      btnTono.dataset.loading = '0';
-      btnTono.textContent = texto;
-    }
+    // ✅ reservar visual del tono
+    reservarStockVisualTono(productoActual.id, tono, 1);
   });
 
   /* =========================
@@ -685,7 +532,6 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       modalMP.style.display = 'flex';
       document.body.classList.add('modal-abierto');
-      extenderReservas();
     };
   }
 
@@ -693,14 +539,12 @@ document.addEventListener('DOMContentLoaded', () => {
     cerrarMP.onclick = () => {
       modalMP.style.display = 'none';
       document.body.classList.remove('modal-abierto');
-      // NO liberamos acá porque capaz sigue comprando.
-      // Se liberan al irse/cerrar/abandonar.
     };
   }
 
   /* =========================
-     COMPROBANTE + WHATSAPP
-     ✅ Stock real se descuenta SOLO cuando confirma (acá).
+     COMPROBANTE + WHATSAPP + EMAIL
+     ✅ CAMBIO CLAVE #3: DESCONTAR STOCK REAL ACÁ
   ========================= */
   const inputComprobante = document.getElementById('input-comprobante');
   const montoConfirmado = document.getElementById('monto-confirmado');
@@ -741,7 +585,6 @@ document.addEventListener('DOMContentLoaded', () => {
         btnEnviarWsp.textContent = 'Enviar pedido por WhatsApp';
       }
       if (avisoAdjunto) avisoAdjunto.style.display = 'none';
-      extenderReservas();
     });
   }
 
@@ -791,46 +634,96 @@ document.addEventListener('DOMContentLoaded', () => {
 
     return (
 `Hola! Ya realicé el pago.
-✅ Orden: ${orderCode}
-💰 Monto pagado: $${monto}
+🧾 Orden: ${orderCode}
+💰 Monto: $${monto}
 
-📎 Comprobante (link): ${link}
+📎 Comprobante: ${link}
 
 Detalle:
 ${detalle}
 `);
   }
 
-  // ✅ Descontar stock real en DB (recién en confirmación)
-  async function descontarStockRealEnDB() {
-    const productos = carrito.filter(p => p.tipo === 'producto');
-    const tonos = carrito.filter(p => p.tipo === 'tono');
-
-    // Productos simples
-    for (const p of productos) {
-      for (let i = 0; i < (p.cantidad || 1); i++) {
-        const { data, error } = await supa.rpc('decrement_stock', { p_nombre: p.nombre_base });
-        if (error) throw error;
-        const nuevoStock = Number(data);
-        if (nuevoStock < 0) throw new Error(`Sin stock para: ${p.nombre_base}`);
+  // ✅ DESCUENTA STOCK REAL EN SUPABASE (recién al confirmar)
+  async function confirmarCompraYDescontarStock() {
+    // 1) Armamos lista “expandida” por cantidad
+    const acciones = [];
+    for (const item of carrito) {
+      for (let k = 0; k < (item.cantidad || 0); k++) {
+        acciones.push(item);
       }
     }
 
-    // Tonos
-    for (const t of tonos) {
-      for (let i = 0; i < (t.cantidad || 1); i++) {
+    // 2) Primero revalidamos stock contra DB (evita descontar a medias)
+    //    Productos sin tonos: por producto_id
+    //    Tonos: por producto_id+tono
+    const prods = new Map();   // producto_id -> total
+    const tonos = new Map();   // `${pid}:${tono}` -> total
+
+    carrito.forEach(it => {
+      if (it.kind === 'producto') {
+        prods.set(it.producto_id, (prods.get(it.producto_id) || 0) + it.cantidad);
+      } else if (it.kind === 'tono') {
+        const kt = `${it.producto_id}:${it.tono}`;
+        tonos.set(kt, (tonos.get(kt) || 0) + it.cantidad);
+      }
+    });
+
+    // validar productos
+    if (prods.size) {
+      const ids = Array.from(prods.keys());
+      const { data, error } = await supa.from('productos').select('id, stock').in('id', ids);
+      if (error) throw error;
+
+      for (const row of (data || [])) {
+        const necesito = prods.get(row.id) || 0;
+        const stock = Number(row.stock || 0);
+        if (stock < necesito) {
+          throw new Error(`Stock insuficiente (producto id ${row.id}). Hay ${stock}, necesitás ${necesito}.`);
+        }
+      }
+    }
+
+    // validar tonos
+    if (tonos.size) {
+      // consultamos por producto_id y traemos tonos de esos productos
+      const pids = Array.from(new Set(Array.from(tonos.keys()).map(x => x.split(':')[0])));
+      const { data, error } = await supa.from('tonos').select('producto_id, tono, stock').in('producto_id', pids);
+      if (error) throw error;
+
+      const map = new Map();
+      (data || []).forEach(r => map.set(`${r.producto_id}:${String(r.tono).trim()}`, Number(r.stock || 0)));
+
+      for (const [kt, necesito] of tonos.entries()) {
+        const stock = Number(map.get(kt) ?? 0);
+        if (stock < necesito) {
+          throw new Error(`Stock insuficiente (tono ${kt}). Hay ${stock}, necesitás ${necesito}.`);
+        }
+      }
+    }
+
+    // 3) Si pasa validación, recién ahí descontamos de verdad
+    //    Productos sin tonos: usamos tu RPC decrement_stock por nombre
+    //    Tonos: usamos tu RPC decrement_tono_stock
+    for (const it of acciones) {
+      if (it.kind === 'producto') {
+        // Tu RPC espera nombre (p_nombre). Usamos el nombre del h3 (it.nombre base).
+        const nombreBase = it.nombre.replace(/\s+x\d+.*$/i, '').trim();
+        const { data, error } = await supa.rpc('decrement_stock', { p_nombre: nombreBase });
+        if (error) throw error;
+        if (Number(data) < 0) throw new Error('Sin stock (producto) al confirmar.');
+      } else if (it.kind === 'tono') {
         const { data, error } = await supa.rpc('decrement_tono_stock', {
-          p_producto_id: t.producto_id,
-          p_tono: String(t.tono)
+          p_producto_id: it.producto_id,
+          p_tono: String(it.tono).trim()
         });
         if (error) throw error;
-        const nuevoStock = Number(data);
-        if (nuevoStock < 0) throw new Error(`Sin stock para tono: ${t.nombre_base} (${t.tono})`);
+        if (Number(data) < 0) throw new Error('Sin stock (tono) al confirmar.');
       }
     }
   }
 
-  async function procesarPagoYObtenerLink(preOpenedWindow) {
+  async function procesarPagoYObtenerLink() {
     if (!carrito.length) {
       setStatus('warn', 'Tu carrito está vacío.');
       throw new Error('Carrito vacío');
@@ -858,12 +751,11 @@ ${detalle}
     }
     setInputsLocked(true);
 
-    // 1) Confirmar stock real
+    // ✅ 1) DESCONTAR STOCK REAL AHORA (no antes)
     setStatus('info', 'Confirmando stock...');
-    await refrescarStockGlobal();
-    await descontarStockRealEnDB();
+    await confirmarCompraYDescontarStock();
 
-    // 2) Crear pedido
+    // ✅ 2) crear pedido + subir PDF + notificar (como ya lo tenías)
     setStatus('info', 'Creando orden...');
     const order_code = generarOrderCode();
 
@@ -877,11 +769,9 @@ ${detalle}
 
     showOrderCode(pedidoActual.order_code);
 
-    // 3) Subir comprobante
     setStatus('info', 'Subiendo comprobante...');
     const comprobante_path = await subirComprobantePDF(fileSeleccionado, pedidoActual.order_code);
 
-    // 4) Link firmado + notificar
     setStatus('info', 'Generando link y notificando...');
     const resp = await notificarPagoBackend({
       pedido_id: pedidoActual.id,
@@ -896,47 +786,40 @@ ${detalle}
       throw new Error('Sin signed_url');
     }
 
-    // ✅ IMPORTANTE: ya se compró -> liberar reservas del carrito (para no trabar stock)
-    try { await liberarReservas(); } catch (_) {}
-
     setStatus('ok', 'Listo ✅ Ahora se abre WhatsApp con tu orden y el link.');
     if (avisoAdjunto) avisoAdjunto.style.display = 'block';
 
-    // Limpiar carrito local (opcional pero recomendado)
-    carrito = [];
-    renderCarrito();
-
-    // refrescar stock visible
-    refrescarStockGlobal();
-
-    return { monto, order_code: pedidoActual.order_code, link: linkComprobante, preOpenedWindow };
+    return { monto, order_code: pedidoActual.order_code, link: linkComprobante };
   }
 
   if (btnEnviarWsp) {
     btnEnviarWsp.onclick = async () => {
-      // ✅ abrir “ventana” dentro del click para que el celu no bloquee WhatsApp
-      let preOpenedWindow = null;
       try {
-        preOpenedWindow = window.open('about:blank', '_blank');
-      } catch (_) {}
-
-      try {
-        const { monto, order_code, link } = await procesarPagoYObtenerLink(preOpenedWindow);
+        const { monto, order_code, link } = await procesarPagoYObtenerLink();
 
         setStatus(
           'ok',
           'Comprobante subido correctamente ✅ Ahora se abrirá WhatsApp. Adjuntá el PDF desde el clip 📎'
         );
 
-        const msg = armarMensajeWhatsApp(order_code, monto, link);
-        abrirWhatsAppSeguro(WSP_NUMERO, msg, preOpenedWindow);
+        setTimeout(() => {
+          const msg = armarMensajeWhatsApp(order_code, monto, link);
+          abrirWhatsApp(WSP_NUMERO, msg);
+        }, 1200);
+
+        // ✅ Limpieza local: carrito y reservas visuales
+        carrito = [];
+        reservasProductos.clear();
+        reservasTonos.clear();
+        renderCarrito();
+        await refrescarStockGlobal();
 
       } catch (err) {
         console.error(err);
 
-        try { if (preOpenedWindow && !preOpenedWindow.closed) preOpenedWindow.close(); } catch (_) {}
-
+        setStatus('error', (err && err.message) ? err.message : 'Error procesando el pago.');
         setInputsLocked(false);
+
         if (btnEnviarWsp) {
           btnEnviarWsp.disabled = false;
           btnEnviarWsp.textContent = 'Enviar pedido por WhatsApp';
@@ -945,22 +828,10 @@ ${detalle}
           btnPague.disabled = false;
           btnPague.textContent = 'Ya realicé el pago';
         }
+
+        // si falló, resync stock real para no “mentir” visualmente
+        await refrescarStockGlobal();
       }
     };
   }
-
-  /* =========================
-     ✅ ABANDONO / CIERRE / RECARGA
-     Si se va sin pagar -> libera reservas y vuelve stock.
-  ========================= */
-  const liberarAlSalir = async () => {
-    try {
-      await liberarReservas();
-    } catch (_) {}
-  };
-
-  // iOS/Android usan pagehide más que beforeunload
-  window.addEventListener('pagehide', liberarAlSalir);
-  window.addEventListener('beforeunload', liberarAlSalir);
-
 });
