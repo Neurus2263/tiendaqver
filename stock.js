@@ -597,9 +597,9 @@ document.addEventListener('DOMContentLoaded', () => {
     return data.path;
   }
 
-  async function notificarPagoBackend({ pedido_id, order_code, comprobante_path, monto_pagado }) {
+  async function notificarPagoBackend({ pedido_id, order_code, comprobante_path, monto_pagado, items, total }) {
     const { data, error } = await supa.functions.invoke('notificar-pago', {
-      body: { pedido_id, order_code, comprobante_path, monto_pagado }
+      body: { pedido_id, order_code, comprobante_path, monto_pagado, items, total }
     });
 
     if (error) throw error;
@@ -611,6 +611,8 @@ document.addEventListener('DOMContentLoaded', () => {
       .map(p => `- ${p.nombre} x${p.cantidad} = $${p.precio * p.cantidad}`)
       .join('\n');
 
+    const detalleFinal = detalle && detalle.trim().length ? detalle : '(sin detalle)';
+
     return (
 `Hola! Ya realicé el pago.
 🧾 Orden: ${orderCode}
@@ -619,7 +621,7 @@ document.addEventListener('DOMContentLoaded', () => {
 📎 Comprobante: ${link}
 
 Detalle:
-${detalle}
+${detalleFinal}
 `);
   }
 
@@ -742,7 +744,9 @@ ${detalle}
       pedido_id: pedidoActual.id,
       order_code: pedidoActual.order_code,
       comprobante_path,
-      monto_pagado: monto
+      monto_pagado: monto,
+      items: carrito,
+      total: totalCarritoActual()
     });
 
     linkComprobante = resp?.signed_url;
@@ -770,9 +774,11 @@ ${detalle}
         // ✅ FIX WhatsApp: armar mensaje antes de vaciar carrito
         const msg = armarMensajeWhatsApp(order_code, monto, link);
 
+        // ✅ FIX EarlyDrop: darle más tiempo a que termine el backend antes del redirect
+        setStatus('ok', 'Listo ✅ Te abrimos WhatsApp en 3 segundos (no cierres la página).');
         setTimeout(() => {
           abrirWhatsApp(WSP_NUMERO, msg);
-        }, 1200);
+        }, 3000);
 
         carrito = [];
         reservasProductos.clear();
