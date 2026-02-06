@@ -895,6 +895,34 @@ document.addEventListener('mouseover', (e) => {
 });
 */
 
+/* =========================
+   EFECTIVO -> WhatsApp directo (robusto)
+========================= */
+const btnEfectivo = document.getElementById('btn-efectivo');
+if (btnEfectivo) {
+  btnEfectivo.addEventListener('click', () => {
+    if (!carrito.length) {
+      setStatus('warn', 'Tu carrito está vacío.');
+      return;
+    }
+
+    const total = totalCarritoActual();
+    const detalle = carrito
+      .map(p => `- ${p.nombre} x${p.cantidad} = $${p.precio * p.cantidad}`)
+      .join('\n');
+
+    const msg =
+`Hola! Quiero pagar en EFECTIVO 💵
+Total: $${total}
+
+Pedido:
+${detalle}
+`;
+
+    abrirWhatsApp(WSP_NUMERO, msg);
+  });
+}
+
 
 
 
