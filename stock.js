@@ -159,10 +159,14 @@ document.addEventListener('DOMContentLoaded', () => {
   let supa = null;
 
   try {
-    if (!window.supabase || !window.supabase.createClient) {
-      setStatus('warn', 'Supabase no cargó. El botón funciona, pero no se podrá subir comprobante.');
-      return;
-    }
+   if (!window.supabase || !window.supabase.createClient) {
+  console.warn('Supabase no cargó: sigo igual con WhatsApp efectivo.');
+  // NO return
+} else {
+  const { createClient } = supabase;
+  supa = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+}
+
 
     const { createClient } = supabase;
     supa = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
