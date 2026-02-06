@@ -805,4 +805,74 @@ ${detalleFinal}
       }
     };
   }
+
+
+/* =========================
+   LIGHTBOX QVER (delegation)
+   - Funciona con productos nuevos sin tocar JS
+   - No toca carrito, supabase, stock
+========================= */
+
+const qverLightbox = document.getElementById('qver-lightbox');
+const qverLightboxImg = document.getElementById('qver-lightbox-img');
+const qverLightboxClose = document.getElementById('qver-lightbox-close');
+
+function abrirLightbox(src, altText = '') {
+  if (!qverLightbox || !qverLightboxImg) return;
+  qverLightboxImg.src = src;
+  qverLightboxImg.alt = altText || 'Imagen ampliada';
+  qverLightbox.classList.add('is-open');
+  qverLightbox.setAttribute('aria-hidden', 'false');
+  document.body.classList.add('modal-abierto'); // reaprovecha tu bloqueo scroll
+}
+
+function cerrarLightbox() {
+  if (!qverLightbox || !qverLightboxImg) return;
+  qverLightbox.classList.remove('is-open');
+  qverLightbox.setAttribute('aria-hidden', 'true');
+  qverLightboxImg.src = '';
+  document.body.classList.remove('modal-abierto');
+}
+
+// Un solo listener para TODAS las imágenes (actuales y futuras)
+document.addEventListener('click', (e) => {
+  const img = e.target.closest(
+    '.producto-img img, .modal-tonos img'
+  );
+
+  if (!img) return;
+
+  abrirLightbox(img.src, img.alt || '');
+});
+
+
+// Cerrar con X
+if (qverLightboxClose) {
+  qverLightboxClose.addEventListener('click', cerrarLightbox);
+}
+
+// Cerrar tocando afuera
+if (qverLightbox) {
+  qverLightbox.addEventListener('click', (e) => {
+    if (e.target === qverLightbox) cerrarLightbox();
+  });
+}
+
+// Cerrar con ESC
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && qverLightbox?.classList.contains('is-open')) {
+    cerrarLightbox();
+  }
+});
+
+/*Cursor “zoom” (solo visual)
+document.addEventListener('mouseover', (e) => {
+  const img = e.target.closest('.producto-img img');
+  if (img) img.style.cursor = 'zoom-in';
+});
+*/
+
+
+
+
 });

@@ -894,4 +894,146 @@ h2 {
 
 
 
+/* =========================
+   LIGHTBOX QVER (IMAGEN EN GRANDE)
+   - No pisa nada, son clases nuevas
+========================= */
+
+.qver-lightbox{
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.85);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 99999;
+  backdrop-filter: blur(6px);
+  padding: 18px;
+}
+
+.qver-lightbox.is-open{
+  display: flex;
+}
+
+.qver-lightbox img{
+  max-width: min(980px, 92vw);
+  max-height: 86vh;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 25px 60px rgba(0,0,0,.55);
+  animation: qverZoomIn .22s ease;
+}
+
+.qver-lightbox-close{
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  width: 44px;
+  height: 44px;
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
+  font-weight: 900;
+  font-size: 18px;
+
+  background: rgba(255,255,255,.85);
+  color: #7a5fc5;
+  border: 1px solid rgba(155,126,219,.25);
+  box-shadow: 0 10px 22px rgba(0,0,0,.25);
+
+  transition: transform .15s ease, filter .15s ease;
+}
+
+.qver-lightbox-close:hover{
+  transform: rotate(90deg) scale(1.05);
+  filter: brightness(1.02);
+}
+
+@keyframes qverZoomIn{
+  from { transform: scale(.96); opacity: 0; }
+  to   { transform: scale(1); opacity: 1; }
+}
+
+/* ===== ICONO LUPA QVER ===== */
+
+.producto-img{
+  position: relative;
+  cursor: pointer;
+}
+
+.producto-img::before{
+  content: "🔍";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(.7);
+  font-size: 28px;
+
+  background: rgba(255,255,255,.85);
+  backdrop-filter: blur(6px);
+
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  opacity: 0;
+  transition: all .25s ease;
+
+  box-shadow: 0 10px 25px rgba(155,126,219,.35);
+  color: #9b7edb; /* lila QVER */
+}
+
+.producto-img:hover::before{
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+}
+
+
+.producto-img{
+  position: relative;
+}
+
+.producto-img::after{
+  content: "Ver";
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 10px;
+  border-radius: 999px;
+
+  background: rgba(155,126,219,.9);
+  color: white;
+
+  opacity: 0;
+  transition: opacity .25s ease;
+}
+
+.producto-img:hover::after{
+  opacity: 1;
+}
+
+
+
+
+.modal-tonos .modal-contenido > img{
+  transition: transform .2s ease;
+}
+
+.modal-tonos .modal-contenido > img:hover{
+  transform: scale(1.02);
+}
+
+
+/* Cursor manito en carta de tonos */
+.modal-tonos .modal-contenido > img{
+  cursor: pointer;
+}
+
+
 
