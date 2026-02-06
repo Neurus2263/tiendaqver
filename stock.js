@@ -107,10 +107,29 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function abrirWhatsApp(phoneE164, mensaje) {
-    const text = encodeURIComponent(mensaje);
-    const url = `https://api.whatsapp.com/send?phone=${phoneE164}&text=${text}`;
-    window.location.href = url;
+  const phone = String(phoneE164 || '').replace(/\D/g, ''); // solo números
+  const text = encodeURIComponent(mensaje || '');
+
+  // ✅ 1) Más compatible en mobile: wa.me
+  const url1 = `https://wa.me/${phone}?text=${text}`;
+
+  // ✅ 2) Fallback clásico
+  const url2 = `https://api.whatsapp.com/send?phone=${phone}&text=${text}`;
+
+  try {
+    // En celulares esto suele funcionar mejor que window.open
+    window.location.assign(url1);
+
+    // Backup por si el navegador bloquea o falla (algunos casos raros)
+    setTimeout(() => {
+      // si sigue en la misma página, probamos fallback
+      window.location.assign(url2);
+    }, 900);
+  } catch (e) {
+    window.location.href = url2;
   }
+}
+
 
   /* =========================
      CLICK ROBUSTO: "YA REALICÉ EL PAGO"
