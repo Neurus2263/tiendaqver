@@ -89,46 +89,21 @@ document.addEventListener('DOMContentLoaded', () => {
   /* =========================
      HELPERS (GENERAL)
   ========================= */
-  function normalizar(txt) {
-    return (txt || '')
-      .toLowerCase()
-      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-      .replace(/\s+/g, ' ')
-      .trim();
-  }
-
-  function generarOrderCode() {
-    const d = new Date();
-    const y = d.getFullYear().toString().slice(-2);
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    const rand = Math.random().toString(36).slice(2, 7).toUpperCase();
-    return `QVER-${y}${m}${day}-${rand}`;
-  }
-
   function abrirWhatsApp(phoneE164, mensaje) {
-  const phone = String(phoneE164 || '').replace(/\D/g, ''); // solo números
+  const phone = String(phoneE164 || '').replace(/\D/g, '');
   const text = encodeURIComponent(mensaje || '');
 
-  // ✅ 1) Más compatible en mobile: wa.me
-  const url1 = `https://wa.me/${phone}?text=${text}`;
+  const url = `https://wa.me/${phone}?text=${text}`;
 
-  // ✅ 2) Fallback clásico
-  const url2 = `https://api.whatsapp.com/send?phone=${phone}&text=${text}`;
+  // Abrir en nueva pestaña (mejor UX)
+  const win = window.open(url, '_blank', 'noopener,noreferrer');
 
-  try {
-    // En celulares esto suele funcionar mejor que window.open
-    window.location.assign(url1);
-
-    // Backup por si el navegador bloquea o falla (algunos casos raros)
-    setTimeout(() => {
-      // si sigue en la misma página, probamos fallback
-      window.location.assign(url2);
-    }, 900);
-  } catch (e) {
-    window.location.href = url2;
+  // Fallback si el navegador bloquea popups
+  if (!win) {
+    window.location.href = url;
   }
 }
+
 
 
   /* =========================
