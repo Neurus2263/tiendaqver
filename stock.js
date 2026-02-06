@@ -107,29 +107,10 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function abrirWhatsApp(phoneE164, mensaje) {
-  const phone = String(phoneE164 || '').replace(/\D/g, ''); // solo números
-  const text = encodeURIComponent(mensaje || '');
-
-  // ✅ 1) Más compatible en mobile: wa.me
-  const url1 = `https://wa.me/${phone}?text=${text}`;
-
-  // ✅ 2) Fallback clásico
-  const url2 = `https://api.whatsapp.com/send?phone=${phone}&text=${text}`;
-
-  try {
-    // En celulares esto suele funcionar mejor que window.open
-    window.location.assign(url1);
-
-    // Backup por si el navegador bloquea o falla (algunos casos raros)
-    setTimeout(() => {
-      // si sigue en la misma página, probamos fallback
-      window.location.assign(url2);
-    }, 900);
-  } catch (e) {
-    window.location.href = url2;
+    const text = encodeURIComponent(mensaje);
+    const url = `https://api.whatsapp.com/send?phone=${phoneE164}&text=${text}`;
+    window.location.href = url;
   }
-}
-
 
   /* =========================
      CLICK ROBUSTO: "YA REALICÉ EL PAGO"
@@ -159,14 +140,10 @@ document.addEventListener('DOMContentLoaded', () => {
   let supa = null;
 
   try {
-   if (!window.supabase || !window.supabase.createClient) {
-  console.warn('Supabase no cargó: sigo igual con WhatsApp efectivo.');
-  // NO return
-} else {
-  const { createClient } = supabase;
-  supa = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-}
-
+    if (!window.supabase || !window.supabase.createClient) {
+      setStatus('warn', 'Supabase no cargó. El botón funciona, pero no se podrá subir comprobante.');
+      return;
+    }
 
     const { createClient } = supabase;
     supa = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -829,7 +806,6 @@ ${detalleFinal}
     };
   }
 
-
 /* =========================
    LIGHTBOX QVER (delegation)
    - Funciona con productos nuevos sin tocar JS
@@ -888,42 +864,5 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
-/*Cursor “zoom” (solo visual)
-document.addEventListener('mouseover', (e) => {
-  const img = e.target.closest('.producto-img img');
-  if (img) img.style.cursor = 'zoom-in';
-});
-*/
-
-/* =========================
-   EFECTIVO -> WhatsApp directo (robusto)
-========================= */
-const btnEfectivo = document.getElementById('btn-efectivo');
-if (btnEfectivo) {
-  btnEfectivo.addEventListener('click', () => {
-    if (!carrito.length) {
-      setStatus('warn', 'Tu carrito está vacío.');
-      return;
-    }
-
-    const total = totalCarritoActual();
-    const detalle = carrito
-      .map(p => `- ${p.nombre} x${p.cantidad} = $${p.precio * p.cantidad}`)
-      .join('\n');
-
-    const msg =
-`Hola! Quiero pagar en EFECTIVO 💵
-Total: $${total}
-
-Pedido:
-${detalle}
-`;
-
-    abrirWhatsApp(WSP_NUMERO, msg);
-  });
-}
-
-
-
-
+  
 });
